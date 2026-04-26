@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout backend repository
         uses: actions/checkout@v4
 
       - name: Setup JDK 25
@@ -63,7 +63,7 @@ jobs:
           cat contract-response.txt
           grep -q "openapi:" contract-response.txt
 
-      - name: Checkout CATS
+      - name: Checkout CATS source
         uses: actions/checkout@v4
         with:
           repository: Endava/cats
@@ -74,11 +74,22 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+          cache: maven
+
+      - name: Prepare CATS Maven wrapper
+        working-directory: tools/cats-src
+        run: |
+          chmod +x mvnw
+
+      - name: Clean CATS workspace
+        working-directory: tools/cats-src
+        run: |
+          ./mvnw clean
 
       - name: Build CATS uberjar
         working-directory: tools/cats-src
         run: |
-          ./mvnw clean package -Dquarkus.package.type=uber-jar
+          ./mvnw package -Dquarkus.package.type=uber-jar
 
       - name: Run CATS against QA
         run: |
