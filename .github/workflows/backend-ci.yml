@@ -2,9 +2,9 @@ name: IDS Platform Backend CI
 
 on:
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
   push:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
   build-and-test:
@@ -78,6 +78,32 @@ jobs:
           curl -fsS http://localhost:8080/test/contract > contract-response.txt
           cat contract-response.txt
           grep -q "openapi:" contract-response.txt
+
+      - name: Download CATS
+        run: |
+          mkdir -p tools
+          curl -L -o tools/cats-runner.jar https://github.com/Endava/cats/releases/download/cats-13.8.0/cats-runner.jar
+
+      - name: Run CATS in blackbox mode
+        run: |
+          mkdir -p cats-report
+          java -jar tools/cats-runner.jar \
+            --contract=http://localhost:8080/test/contract \
+            --server=http://localhost:8080 \
+            --blackbox \
+            --reportFormat=HTML_ONLY \
+            --output=cats-report \
+            --timestampReports \
+            --skipReportingForIgnored \
+            --verbosity=SUMMARY
+
+      - name: Upload CATS report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cats-report
+          path: cats-report
+          if-no-files-found: ignore
 
       - name: Upload backend log
         if: always()
