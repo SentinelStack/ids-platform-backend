@@ -57,19 +57,21 @@ jobs:
           echo "Ping response: $response"
           test "$response" = "pong"
 
-      - name: Verify QA contract endpoint
+      - name: Verify QA bundled contract endpoint
         run: |
-          curl -fsS https://qa-api.puk3p.online/test/contract > contract-response.txt
+          curl -fsS https://qa-api.puk3p.online/test/contract/bundled > contract-response.txt
           cat contract-response.txt
           grep -q "openapi:" contract-response.txt
 
       - name: Checkout CATS source
+        if: github.event_name == 'push'
         uses: actions/checkout@v4
         with:
           repository: Endava/cats
           path: tools/cats-src
 
       - name: Setup JDK for CATS
+        if: github.event_name == 'push'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -77,32 +79,36 @@ jobs:
           cache: maven
 
       - name: Prepare CATS Maven wrapper
+        if: github.event_name == 'push'
         working-directory: tools/cats-src
         run: |
           chmod +x mvnw
 
       - name: Clean CATS workspace
+        if: github.event_name == 'push'
         working-directory: tools/cats-src
         run: |
           ./mvnw clean
 
       - name: Build CATS uberjar
+        if: github.event_name == 'push'
         working-directory: tools/cats-src
         run: |
           ./mvnw package -Dquarkus.package.type=uber-jar
 
       - name: Run CATS against QA
+        if: github.event_name == 'push'
         run: |
           mkdir -p cats-report
           java -jar tools/cats-src/target/cats-runner.jar \
-            --contract=https://qa-api.puk3p.online/test/contract \
+            --contract=https://qa-api.puk3p.online/test/contract/bundled \
             --server=https://qa-api.puk3p.online \
             --blackbox \
             --reportFormat=HTML_ONLY \
             --output=cats-report \
             --timestampReports \
             --skipReportingForIgnored \
-            --verbosity=SUMMARY
+            --verbosity=SUMMARY > cats-output.log 2>&1
 
       - name: Upload CATS report
         if: always()
@@ -118,4 +124,12 @@ jobs:
         with:
           name: qa-contract-response
           path: contract-response.txt
+          if-no-files-found: ignore
+
+      - name: Upload CATS output log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cats-output-log
+          path: cats-output.log
           if-no-files-found: ignore
