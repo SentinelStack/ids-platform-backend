@@ -13,20 +13,27 @@ class ContractTestController {
     fun ping(): String = "pong"
 
     @GetMapping("/test/contract")
-    fun readContractFromDependency(): ResponseEntity<String> {
+    fun readOriginalContract(): ResponseEntity<String> =
+        readClasspathFile("openapi/ids-backend.yaml")
+
+    @GetMapping("/test/contract/bundled")
+    fun readBundledContract(): ResponseEntity<String> =
+        readClasspathFile("openapi/ids-backend-bundled.yaml")
+
+    private fun readClasspathFile(path: String): ResponseEntity<String> {
         return try {
-            val resource = ClassPathResource("openapi/ids-backend.yaml")
+            val resource = ClassPathResource(path)
 
             if (!resource.exists()) {
                 ResponseEntity.internalServerError()
-                    .body("Contract file was not found in classpath.")
+                    .body("Contract file was not found in classpath: $path")
             } else {
-                val content = resource.inputStream.readAllBytes().toString(StandardCharsets.UTF_8)
+                val content = String(resource.inputStream.readAllBytes(), StandardCharsets.UTF_8)
                 ResponseEntity.ok(content)
             }
         } catch (exception: Exception) {
             ResponseEntity.internalServerError()
-                .body("Failed to read contract from dependency: ${exception.message}")
+                .body("Failed to read contract from classpath: ${exception.message}")
         }
     }
 }

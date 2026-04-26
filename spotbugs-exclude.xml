@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <Match>
+        <Class name="ro.puk3p.sentinel.web.ContractTestController"/>
+        <Method name="readClasspathFile"/>
+        <Bug pattern="SA_LOCAL_SELF_ASSIGNMENT"/>
+    </Match>
+</FindBugsFilter>

@@ -40,3 +40,24 @@ src/main/kotlin/ro/puk3p/sentinel/
 
 src/main/resources/
 └── application.yml
+
+## Quality Gates and Git Hooks
+
+This repository is configured with:
+
+- Checkstyle (`mvn checkstyle:check`)
+- PMD (`mvn pmd:check`)
+- SpotBugs (`mvn spotbugs:check`)
+
+Git hooks are stored in `.githooks/`:
+
+- `pre-commit`: runs Checkstyle + PMD
+- `pre-push`: runs SpotBugs + Checkstyle + PMD
+
+Both hooks force JDK 17 for compatibility with SpotBugs.
+
+To configure hooks on your machine:
+
+```bash
+./scripts/setup-git-hooks.sh
+```
