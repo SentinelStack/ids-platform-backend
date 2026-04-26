@@ -5,26 +5,163 @@ on:
     branches: [ main ]
   push:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      deploy_qa:
+        description: "Deploy current build to QA"
+        required: false
+        default: false
+        type: boolean
+      run_cats:
+        description: "Run CATS against QA"
+        required: false
+        default: false
+        type: boolean
+      deploy_nexus:
+        description: "Deploy artifact to Nexus"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
-  build-and-test:
-    name: Build and Verify Backend Against QA
+  quality-gates:
+    name: Build, Test and Quality Gates
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout backend repository
         uses: actions/checkout@v4
 
-      - name: Setup JDK 25
+      - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: '21'
+          cache: maven
+
+      - name: Build and run tests
+        run: mvn -B clean test
+
+      - name: Run Checkstyle
+        run: mvn -B -DskipTests checkstyle:check
+
+      - name: Run PMD
+        run: mvn -B -DskipTests pmd:check
+
+      - name: Run SpotBugs
+        run: mvn -B -DskipTests spotbugs:check
+
+  deploy-qa:
+    name: Manual Deploy to QA
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_qa == true
+    needs: quality-gates
+    runs-on: ubuntu-latest
+    environment:
+      name: qa
+
+    steps:
+      - name: Checkout backend repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build artifact
+        run: mvn -B -DskipTests clean package
+
+      - name: Resolve deploy artifact
+        run: |
+          JAR_FILE=$(find target -maxdepth 1 -type f -name "*.jar" ! -name "original-*.jar" | head -n 1)
+
+          if [ -z "$JAR_FILE" ]; then
+            echo "No deployable jar found in target/"
+            exit 1
+          fi
+
+          echo "JAR_FILE=$JAR_FILE" >> $GITHUB_ENV
+          echo "Using artifact: $JAR_FILE"
+
+      - name: Validate QA deploy secrets
+        run: |
+          test -n "${QA_SSH_HOST}" || (echo "Missing QA_SSH_HOST secret" && exit 1)
+          test -n "${QA_SSH_USER}" || (echo "Missing QA_SSH_USER secret" && exit 1)
+          test -n "${QA_SSH_PRIVATE_KEY}" || (echo "Missing QA_SSH_PRIVATE_KEY secret" && exit 1)
+        env:
+          QA_SSH_HOST: ${{ secrets.QA_SSH_HOST }}
+          QA_SSH_USER: ${{ secrets.QA_SSH_USER }}
+          QA_SSH_PRIVATE_KEY: ${{ secrets.QA_SSH_PRIVATE_KEY }}
+
+      - name: Deploy jar to QA over SSH
+        env:
+          QA_SSH_HOST: ${{ secrets.QA_SSH_HOST }}
+          QA_SSH_USER: ${{ secrets.QA_SSH_USER }}
+          QA_SSH_PRIVATE_KEY: ${{ secrets.QA_SSH_PRIVATE_KEY }}
+          QA_SSH_PORT: ${{ secrets.QA_SSH_PORT }}
+          QA_DEPLOY_PATH: ${{ vars.QA_DEPLOY_PATH }}
+          QA_SERVICE_NAME: ${{ vars.QA_SERVICE_NAME }}
+        run: |
+          DEPLOY_PATH="${QA_DEPLOY_PATH:-/opt/ids-platform-backend}"
+          SERVICE_NAME="${QA_SERVICE_NAME:-ids-platform-backend}"
+          PORT="${QA_SSH_PORT:-22}"
+
+          mkdir -p ~/.ssh
+          printf "%s" "${QA_SSH_PRIVATE_KEY}" > ~/.ssh/qa_key
+          chmod 600 ~/.ssh/qa_key
+          ssh-keyscan -p "$PORT" -H "$QA_SSH_HOST" >> ~/.ssh/known_hosts
+
+          scp -i ~/.ssh/qa_key -P "$PORT" "$JAR_FILE" "${QA_SSH_USER}@${QA_SSH_HOST}:${DEPLOY_PATH}/app.jar"
+          ssh -i ~/.ssh/qa_key -p "$PORT" "${QA_SSH_USER}@${QA_SSH_HOST}" \
+            "sudo systemctl restart ${SERVICE_NAME} && sudo systemctl status ${SERVICE_NAME} --no-pager"
+
+  qa-smoke-tests:
+    name: QA Smoke Tests
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_qa == true
+    needs: deploy-qa
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verify QA ping endpoint
+        run: |
+          response=$(curl -fsS https://qa-api.puk3p.online/test/ping)
+          echo "Ping response: $response"
+          test "$response" = "pong"
+
+      - name: Verify QA bundled contract endpoint
+        run: |
+          curl -fsS https://qa-api.puk3p.online/test/contract/bundled > contract-response.txt
+          cat contract-response.txt
+          grep -q "openapi:" contract-response.txt
+
+      - name: Upload contract response
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-contract-response
+          path: contract-response.txt
+          if-no-files-found: ignore
+
+  deploy-nexus:
+    name: Manual Deploy Artifact to Nexus
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_nexus == true
+    needs: quality-gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout backend repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
           cache: maven
 
       - name: Create Maven settings.xml
@@ -50,59 +187,51 @@ jobs:
           NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
-      - name: Show dependency tree
-        run: mvn -B dependency:tree
+      - name: Deploy to Nexus
+        run: mvn -B -DskipTests deploy
 
-      - name: Build project
-        run: mvn -B clean test
+  cats-report:
+    name: Manual Run CATS Against QA
+    if: github.event_name == 'workflow_dispatch' && (inputs.run_cats == true || inputs.deploy_qa == true)
+    needs:
+      - quality-gates
+      - qa-smoke-tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
 
-      - name: Verify QA ping endpoint
-        run: |
-          response=$(curl -fsS https://qa-api.puk3p.online/test/ping)
-          echo "Ping response: $response"
-          test "$response" = "pong"
-
-      - name: Verify QA bundled contract endpoint
-        run: |
-          curl -fsS https://qa-api.puk3p.online/test/contract/bundled > contract-response.txt
-          cat contract-response.txt
-          grep -q "openapi:" contract-response.txt
+    steps:
+      - name: Checkout backend repository
+        uses: actions/checkout@v4
 
       - name: Checkout CATS source
-        if: github.event_name == 'push'
         uses: actions/checkout@v4
         with:
           repository: Endava/cats
           path: tools/cats-src
 
       - name: Setup JDK for CATS
-        if: github.event_name == 'push'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: '21'
           cache: maven
 
       - name: Prepare CATS Maven wrapper
-        if: github.event_name == 'push'
         working-directory: tools/cats-src
-        run: |
-          chmod +x mvnw
+        run: chmod +x mvnw
 
       - name: Clean CATS workspace
-        if: github.event_name == 'push'
         working-directory: tools/cats-src
-        run: |
-          ./mvnw clean
+        run: ./mvnw clean
 
       - name: Build CATS uberjar
-        if: github.event_name == 'push'
         working-directory: tools/cats-src
-        run: |
-          ./mvnw package -Dquarkus.package.type=uber-jar
+        run: ./mvnw package -Dquarkus.package.type=uber-jar
 
       - name: Run CATS against QA
-        if: github.event_name == 'push'
         run: |
           mkdir -p cats-report
           java -jar tools/cats-src/target/cats-runner.jar \
@@ -123,14 +252,6 @@ jobs:
           path: cats-report
           if-no-files-found: ignore
 
-      - name: Upload contract response
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: qa-contract-response
-          path: contract-response.txt
-          if-no-files-found: ignore
-
       - name: Upload CATS output log
         if: always()
         uses: actions/upload-artifact@v4
@@ -140,28 +261,34 @@ jobs:
           if-no-files-found: ignore
 
       - name: Prepare Pages artifact
-        if: github.event_name == 'push'
         run: |
           mkdir -p pages
           REPORT_DIR=$(find cats-report -type f -name "index.html" -exec dirname {} \; | head -n 1)
+
+          if [ -z "$REPORT_DIR" ]; then
+            echo "No CATS report index.html found"
+            exit 1
+          fi
+
           echo "Using report directory: $REPORT_DIR"
           cp -r "$REPORT_DIR"/* pages/
 
       - name: Configure Pages
-        if: github.event_name == 'push'
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
-        if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           path: pages
 
   deploy-pages:
     name: Deploy CATS Report to GitHub Pages
-    if: github.event_name == 'push'
-    needs: build-and-test
+    if: github.event_name == 'workflow_dispatch' && (inputs.run_cats == true || inputs.deploy_qa == true)
+    needs: cats-report
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
