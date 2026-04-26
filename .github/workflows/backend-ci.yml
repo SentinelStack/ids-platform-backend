@@ -1,0 +1,97 @@
+name: IDS Platform Backend CI
+
+on:
+  pull_request:
+    branches: [ main, master ]
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    name: Build, Run and Verify Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Create Maven settings.xml
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>nexus-releases</id>
+                <username>${NEXUS_USERNAME}</username>
+                <password>${NEXUS_PASSWORD}</password>
+              </server>
+              <server>
+                <id>nexus-snapshots</id>
+                <username>${NEXUS_USERNAME}</username>
+                <password>${NEXUS_PASSWORD}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+        env:
+          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+
+      - name: Show dependency tree
+        run: mvn -B dependency:tree
+
+      - name: Build project
+        run: mvn -B clean test
+
+      - name: Start backend
+        run: |
+          nohup mvn -B spring-boot:run > backend.log 2>&1 &
+          echo $! > backend.pid
+
+      - name: Wait for backend startup
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:8080/test/ping; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend did not start in time"
+          exit 1
+
+      - name: Verify ping endpoint
+        run: |
+          response=$(curl -fsS http://localhost:8080/test/ping)
+          echo "Ping response: $response"
+          test "$response" = "pong"
+
+      - name: Verify contract endpoint
+        run: |
+          curl -fsS http://localhost:8080/test/contract > contract-response.txt
+          cat contract-response.txt
+          grep -q "openapi:" contract-response.txt
+
+      - name: Upload backend log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log
+          path: |
+            backend.log
+            contract-response.txt
+          if-no-files-found: ignore
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f backend.pid ]; then
+            kill $(cat backend.pid) || true
+          fi
