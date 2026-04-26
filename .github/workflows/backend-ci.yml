@@ -63,16 +63,27 @@ jobs:
           cat contract-response.txt
           grep -q "openapi:" contract-response.txt
 
-      - name: Download CATS from Maven Central
+      - name: Checkout CATS
+        uses: actions/checkout@v4
+        with:
+          repository: Endava/cats
+          path: tools/cats-src
+
+      - name: Setup JDK for CATS
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Build CATS uberjar
+        working-directory: tools/cats-src
         run: |
-          mkdir -p tools
-          curl -fL -o tools/cats.jar https://repo1.maven.org/maven2/com/endava/cats/13.0.0/cats-13.0.0.jar
-          java -jar tools/cats.jar --help > /dev/null
+          ./mvnw clean package -Dquarkus.package.type=uber-jar
 
       - name: Run CATS against QA
         run: |
           mkdir -p cats-report
-          java -jar tools/cats.jar \
+          java -jar tools/cats-src/target/cats-runner.jar \
             --contract=https://qa-api.puk3p.online/test/contract \
             --server=https://qa-api.puk3p.online \
             --blackbox \
