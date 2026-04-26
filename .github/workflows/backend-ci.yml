@@ -79,15 +79,16 @@ jobs:
           cat contract-response.txt
           grep -q "openapi:" contract-response.txt
 
-      - name: Download CATS
+      - name: Download CATS from Maven Central
         run: |
           mkdir -p tools
-          curl -L -o tools/cats-runner.jar https://github.com/Endava/cats/releases/download/cats-13.8.0/cats-runner.jar
+          curl -fL -o tools/cats.jar https://repo1.maven.org/maven2/com/endava/cats/13.0.0/cats-13.0.0.jar
+          java -jar tools/cats.jar --help > /dev/null
 
       - name: Run CATS in blackbox mode
         run: |
           mkdir -p cats-report
-          java -jar tools/cats-runner.jar \
+          java -jar tools/cats.jar \
             --contract=http://localhost:8080/test/contract \
             --server=http://localhost:8080 \
             --blackbox \
