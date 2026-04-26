@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build, Run and Verify Backend
+    name: Build and Verify Backend Against QA
     runs-on: ubuntu-latest
 
     steps:
@@ -51,31 +51,15 @@ jobs:
       - name: Build project
         run: mvn -B clean test
 
-      - name: Start backend
+      - name: Verify QA ping endpoint
         run: |
-          nohup mvn -B spring-boot:run > backend.log 2>&1 &
-          echo $! > backend.pid
-
-      - name: Wait for backend startup
-        run: |
-          for i in {1..60}; do
-            if curl -fsS http://localhost:8080/test/ping; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Backend did not start in time"
-          exit 1
-
-      - name: Verify ping endpoint
-        run: |
-          response=$(curl -fsS http://localhost:8080/test/ping)
+          response=$(curl -fsS https://qa-api.puk3p.online/test/ping)
           echo "Ping response: $response"
           test "$response" = "pong"
 
-      - name: Verify contract endpoint
+      - name: Verify QA contract endpoint
         run: |
-          curl -fsS http://localhost:8080/test/contract > contract-response.txt
+          curl -fsS https://qa-api.puk3p.online/test/contract > contract-response.txt
           cat contract-response.txt
           grep -q "openapi:" contract-response.txt
 
@@ -85,12 +69,12 @@ jobs:
           curl -fL -o tools/cats.jar https://repo1.maven.org/maven2/com/endava/cats/13.0.0/cats-13.0.0.jar
           java -jar tools/cats.jar --help > /dev/null
 
-      - name: Run CATS in blackbox mode
+      - name: Run CATS against QA
         run: |
           mkdir -p cats-report
           java -jar tools/cats.jar \
-            --contract=http://localhost:8080/test/contract \
-            --server=http://localhost:8080 \
+            --contract=https://qa-api.puk3p.online/test/contract \
+            --server=https://qa-api.puk3p.online \
             --blackbox \
             --reportFormat=HTML_ONLY \
             --output=cats-report \
@@ -106,19 +90,10 @@ jobs:
           path: cats-report
           if-no-files-found: ignore
 
-      - name: Upload backend log
+      - name: Upload contract response
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-log
-          path: |
-            backend.log
-            contract-response.txt
+          name: qa-contract-response
+          path: contract-response.txt
           if-no-files-found: ignore
-
-      - name: Stop backend
-        if: always()
-        run: |
-          if [ -f backend.pid ]; then
-            kill $(cat backend.pid) || true
-          fi
