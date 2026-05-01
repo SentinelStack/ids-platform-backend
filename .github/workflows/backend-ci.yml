@@ -257,10 +257,12 @@ jobs:
         working-directory: tools/cats-src
         env:
           JAVA_HOME: ${{ steps.setup-java-cats.outputs.path }}
-          PATH: ${{ steps.setup-java-cats.outputs.path }}/bin:${{ env.PATH }}
         run: |
           set -euo pipefail
-          JAVA_MAJOR=$(javac -version 2>&1 | awk '{print $2}' | cut -d. -f1)
+          export PATH="$JAVA_HOME/bin:$PATH"
+          JAVA_VERSION_OUTPUT="$(javac -version 2>&1)"
+          JAVA_VERSION="${JAVA_VERSION_OUTPUT#javac }"
+          JAVA_MAJOR="${JAVA_VERSION%%.*}"
           if [ "$JAVA_MAJOR" -ge 25 ]; then
             ./mvnw package -Dquarkus.package.type=uber-jar
           else
