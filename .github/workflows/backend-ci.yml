@@ -225,11 +225,25 @@ jobs:
           path: tools/cats-src
 
       - name: Setup JDK for CATS
+        id: setup-java-cats
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
           cache: maven
+
+      - name: Verify Java toolchain for CATS
+        run: |
+          echo "JAVA_HOME from setup-java: ${{ steps.setup-java-cats.outputs.path }}"
+          echo "JAVA_HOME before export: $JAVA_HOME"
+          export JAVA_HOME="${{ steps.setup-java-cats.outputs.path }}"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          echo "JAVA_HOME after export: $JAVA_HOME"
+          which java
+          java -version
+          which javac
+          javac -version
+          tools/cats-src/mvnw -version
 
       - name: Prepare CATS Maven wrapper
         working-directory: tools/cats-src
@@ -241,6 +255,9 @@ jobs:
 
       - name: Build CATS uberjar
         working-directory: tools/cats-src
+        env:
+          JAVA_HOME: ${{ steps.setup-java-cats.outputs.path }}
+          PATH: ${{ steps.setup-java-cats.outputs.path }}/bin:${{ env.PATH }}
         run: ./mvnw package -Dquarkus.package.type=uber-jar
 
       - name: Run CATS against QA
