@@ -20,166 +20,46 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
 jobs:
   quality-gates:
     name: Build, Test and Quality Gates
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout backend repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-
-      - name: Create Maven settings.xml
-        run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<EOF
-          <settings>
-            <servers>
-              <server>
-                <id>nexus-releases</id>
-                <username>${NEXUS_USERNAME}</username>
-                <password>${NEXUS_PASSWORD}</password>
-              </server>
-              <server>
-                <id>nexus-snapshots</id>
-                <username>${NEXUS_USERNAME}</username>
-                <password>${NEXUS_PASSWORD}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
-        env:
-          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
-          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-
-      - name: Build and run tests
-        run: mvn -B clean test
-
-      - name: Run Checkstyle
-        run: mvn -B -DskipTests checkstyle:check
-
-      - name: Run PMD
-        run: mvn -B -DskipTests pmd:check
-
-      - name: Run SpotBugs
-        run: mvn -B -DskipTests spotbugs:check
-
-      - name: Package application
-        run: mvn -B -DskipTests package
-
-      - name: Upload built jar
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-jar
-          path: target/*.jar
-          if-no-files-found: error
+    uses: SentinelStack/ids-infra-devops/.github/workflows/reusable-maven-quality.yml@main
+    with:
+      java_version: "21"
+      artifact_name: backend-jar
+    secrets:
+      nexus_username: ${{ secrets.NEXUS_USERNAME }}
+      nexus_password: ${{ secrets.NEXUS_PASSWORD }}
 
   deploy-nexus:
     name: Deploy Artifact to Nexus
     if: github.event_name == 'push'
     needs: quality-gates
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout backend repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-
-      - name: Create Maven settings.xml
-        run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<EOF
-          <settings>
-            <servers>
-              <server>
-                <id>nexus-releases</id>
-                <username>${NEXUS_USERNAME}</username>
-                <password>${NEXUS_PASSWORD}</password>
-              </server>
-              <server>
-                <id>nexus-snapshots</id>
-                <username>${NEXUS_USERNAME}</username>
-                <password>${NEXUS_PASSWORD}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
-        env:
-          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
-          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-
-      - name: Deploy to Nexus
-        run: mvn -B -DskipTests deploy
+    uses: SentinelStack/ids-infra-devops/.github/workflows/reusable-maven-publish-nexus.yml@main
+    with:
+      java_version: "21"
+    secrets:
+      nexus_username: ${{ secrets.NEXUS_USERNAME }}
+      nexus_password: ${{ secrets.NEXUS_PASSWORD }}
 
   deploy-qa:
     name: Manual Deploy to QA
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_qa == 'true'
     needs: quality-gates
-    runs-on: ubuntu-latest
-    environment:
-      name: qa
-
-    steps:
-      - name: Checkout backend repository
-        uses: actions/checkout@v4
-
-      - name: Download built jar
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-jar
-          path: target
-
-      - name: Validate QA deploy secrets
-        run: |
-          test -n "${QA_SSH_HOST}" || (echo "Missing QA_SSH_HOST secret" && exit 1)
-          test -n "${QA_SSH_USER}" || (echo "Missing QA_SSH_USER secret" && exit 1)
-          test -n "${QA_SSH_PRIVATE_KEY}" || (echo "Missing QA_SSH_PRIVATE_KEY secret" && exit 1)
-        env:
-          QA_SSH_HOST: ${{ secrets.QA_SSH_HOST }}
-          QA_SSH_USER: ${{ secrets.QA_SSH_USER }}
-          QA_SSH_PRIVATE_KEY: ${{ secrets.QA_SSH_PRIVATE_KEY }}
-
-      - name: Deploy jar to QA over SSH
-        env:
-          QA_SSH_HOST: ${{ secrets.QA_SSH_HOST }}
-          QA_SSH_USER: ${{ secrets.QA_SSH_USER }}
-          QA_SSH_PRIVATE_KEY: ${{ secrets.QA_SSH_PRIVATE_KEY }}
-          QA_SSH_PORT: ${{ secrets.QA_SSH_PORT }}
-          QA_DEPLOY_PATH: ${{ vars.QA_DEPLOY_PATH }}
-          QA_SERVICE_NAME: ${{ vars.QA_SERVICE_NAME }}
-        run: |
-          DEPLOY_PATH="${QA_DEPLOY_PATH:-/opt/ids-platform-backend}"
-          SERVICE_NAME="${QA_SERVICE_NAME:-ids-platform-backend}"
-          PORT="${QA_SSH_PORT:-22}"
-          JAR_FILE=$(find target -maxdepth 1 -name "*.jar" | head -n 1)
-
-          test -n "$JAR_FILE" || (echo "No jar found in target/" && exit 1)
-
-          mkdir -p ~/.ssh
-          echo "${QA_SSH_PRIVATE_KEY}" > ~/.ssh/qa_key
-          chmod 600 ~/.ssh/qa_key
-          ssh-keyscan -p "$PORT" -H "$QA_SSH_HOST" >> ~/.ssh/known_hosts
-
-          ssh -i ~/.ssh/qa_key -p "$PORT" "${QA_SSH_USER}@${QA_SSH_HOST}" "mkdir -p ${DEPLOY_PATH}"
-          scp -i ~/.ssh/qa_key -P "$PORT" "$JAR_FILE" "${QA_SSH_USER}@${QA_SSH_HOST}:${DEPLOY_PATH}/app.jar"
-          ssh -i ~/.ssh/qa_key -p "$PORT" "${QA_SSH_USER}@${QA_SSH_HOST}" \
-            "sudo systemctl restart ${SERVICE_NAME} && sudo systemctl status ${SERVICE_NAME} --no-pager"
+    uses: SentinelStack/ids-infra-devops/.github/workflows/reusable-ssh-jar-deploy.yml@main
+    with:
+      artifact_name: backend-jar
+      deploy_path: /opt/ids-platform-backend
+      service_name: ids-platform-backend
+      jar_name: app.jar
+    secrets:
+      ssh_host: ${{ secrets.QA_SSH_HOST }}
+      ssh_user: ${{ secrets.QA_SSH_USER }}
+      ssh_private_key: ${{ secrets.QA_SSH_PRIVATE_KEY }}
 
   qa-smoke-tests:
     name: QA Smoke Tests
