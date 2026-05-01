@@ -258,7 +258,15 @@ jobs:
         env:
           JAVA_HOME: ${{ steps.setup-java-cats.outputs.path }}
           PATH: ${{ steps.setup-java-cats.outputs.path }}/bin:${{ env.PATH }}
-        run: ./mvnw package -Dquarkus.package.type=uber-jar
+        run: |
+          set -euo pipefail
+          JAVA_MAJOR=$(javac -version 2>&1 | awk '{print $2}' | cut -d. -f1)
+          if [ "$JAVA_MAJOR" -ge 25 ]; then
+            ./mvnw package -Dquarkus.package.type=uber-jar
+          else
+            echo "JDK $JAVA_MAJOR detected, using compiler release 21 fallback for CATS build"
+            ./mvnw package -Dquarkus.package.type=uber-jar -Dmaven.compiler.release=21
+          fi
 
       - name: Run CATS against QA
         run: |
