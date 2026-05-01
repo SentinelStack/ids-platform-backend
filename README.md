@@ -57,7 +57,7 @@ Git hooks are stored in `.githooks/`:
 Both hooks force JDK 17 for compatibility with SpotBugs.
 
 To configure hooks on your machine:
-
+```
 ```bash
 ./scripts/setup-git-hooks.sh
 ```
