@@ -119,6 +119,19 @@ mvn clean spring-boot:run
 
 Service starts on `http://localhost:8080`.
 
+## Git Hook Flow
+
+Repository hooks are stored in `.githooks` and enabled via:
+
+```bash
+./scripts/setup-git-hooks.sh
+```
+
+Active checks:
+- `commit-msg`: enforces Conventional Commit prefix (`feat:`, `fix:`, `chore:`, `docs:`, etc.)
+- `pre-commit`: runs local quality checks
+- `pre-push`: validates outgoing commit messages, then runs SpotBugs + Checkstyle + PMD
+
 ## Example API Requests
 
 Register device:
@@ -181,4 +194,3 @@ curl -X POST http://localhost:8080/api/traffic/stats \
 - Kafka events for streaming pipelines
 - deeper web dashboard integration
 - iOS app integration
-
