@@ -4,8 +4,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 
 @SpringBootApplication
-class SentinelBackendApplication
+class IdsPlatformApplication
 
 fun main(args: Array<String>) {
-    runApplication<SentinelBackendApplication>(*args)
+    runApplication<IdsPlatformApplication>(*args)
 }
