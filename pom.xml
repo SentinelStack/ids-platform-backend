@@ -12,7 +12,7 @@
 
     <groupId>ro.puk3p.sentinel</groupId>
     <artifactId>ids-platform-backend</artifactId>
-    <version>1.1.1</version>
+    <version>1.1.2</version>
     <name>ids-platform-backend</name>
     <description>Backend foundation for OpenWrt-based IDS/IPS platform</description>
 
@@ -51,6 +51,12 @@
     </distributionManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>ro.puk3p.sentinel</groupId>
+            <artifactId>ids-api-contract</artifactId>
+            <version>1.1.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
