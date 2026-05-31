@@ -22,9 +22,11 @@ The router performs first-level traffic processing. This backend is designed as 
   - Entity
   - DTO
   - Mapper
+  - Assembler (HATEOAS links)
 - Spring Data JPA
 - Validation (`jakarta.validation`)
 - Centralized exception handling with `@RestControllerAdvice`
+- HATEOAS hypermedia links (`spring-boot-starter-hateoas`)
 
 Project package root:
 
@@ -99,6 +101,44 @@ Switch to MariaDB by setting:
 - `DB_DRIVER=org.mariadb.jdbc.Driver`
 - `DB_USERNAME`
 - `DB_PASSWORD`
+
+## HATEOAS
+
+Responses follow HATEOAS principles: every resource carries a `links` array so
+clients can discover related resources and available actions instead of
+hardcoding URLs.
+
+- **Entry point:** `GET /api` returns the top-level links (devices, alerts,
+  traffic, forensics, health). A client can start there and navigate the whole
+  API by following links.
+- **Resource links:** each item links to itself and its relations — e.g. a
+  device links to its `alerts`, `traffic`, `status`, and `heartbeat`; an alert
+  links to its `device` and `forensics`.
+- **State-driven actions:** affordances reflect resource state. An alert exposes
+  an `acknowledge` link only while it is un-acknowledged; the link disappears
+  once acknowledged.
+- **Pagination:** paged collections include `self`/`first`/`prev`/`next`/`last`
+  links for traversal.
+
+Implementation: `spring-boot-starter-hateoas`, per-resource
+`RepresentationModelAssembler`s under each module's `assembler` package, links
+built with `WebMvcLinkBuilder`, and the `PageLinks` helper for pagination. The
+existing `ApiResponse` envelope is preserved, so the `data` field still carries
+each resource (now enriched with `links`). The OpenWrt agent, which only reads
+`data.deviceId` and the HTTP status, is unaffected.
+
+## CORS
+
+Browser clients (the Angular dashboard) are allowed to call `/api/**` via a
+`WebMvcConfigurer` in `config/CorsConfig.kt`. Allowed origins are configured
+with `app.cors.allowed-origins` (comma-separated), defaulting to the Angular dev
+server `http://localhost:4200`. Override per environment:
+
+```bash
+export CORS_ALLOWED_ORIGINS=http://localhost:4200,https://dashboard.example.com
+```
+
+The OpenWrt edge agent talks to the API server-to-server and is unaffected by CORS.
 
 ## Run Locally
 

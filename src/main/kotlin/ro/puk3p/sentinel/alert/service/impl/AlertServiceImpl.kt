@@ -8,7 +8,6 @@ import ro.puk3p.sentinel.alert.dto.AlertResponse
 import ro.puk3p.sentinel.alert.mapper.AlertMapper
 import ro.puk3p.sentinel.alert.model.AlertFilter
 import ro.puk3p.sentinel.alert.repository.AlertRepository
-import ro.puk3p.sentinel.alert.repository.AlertSpecifications
 import ro.puk3p.sentinel.alert.service.AlertService
 import ro.puk3p.sentinel.common.exception.ResourceNotFoundException
 import java.util.UUID
@@ -28,8 +27,7 @@ class AlertServiceImpl(
         filter: AlertFilter,
         pageable: Pageable,
     ): Page<AlertResponse> {
-        val specification = AlertSpecifications.withFilter(filter)
-        return alertRepository.findAll(specification, pageable).map(AlertMapper::toResponse)
+        return alertRepository.search(filter, pageable).map(AlertMapper::toResponse)
     }
 
     override fun getByAlertId(alertId: String): AlertResponse {

@@ -37,12 +37,12 @@ class TrafficStatsServiceImpl(
     override fun getSummary(): TrafficSummaryResponse {
         val summary = trafficStatsRepository.summarize()
 
-        val totalPackets = summary[0].toLong()
-        val tcpPackets = summary[1].toLong()
-        val udpPackets = summary[2].toLong()
-        val totalBytes = summary[3].toLong()
-        val tcpBytes = summary[4].toLong()
-        val udpBytes = summary[5].toLong()
+        val totalPackets = summary.totalPackets
+        val tcpPackets = summary.tcpPackets
+        val udpPackets = summary.udpPackets
+        val totalBytes = summary.totalBytes
+        val tcpBytes = summary.tcpBytes
+        val udpBytes = summary.udpBytes
 
         val tcpPercentage = if (totalPackets == 0L) 0.0 else (tcpPackets.toDouble() / totalPackets) * 100
         val udpPercentage = if (totalPackets == 0L) 0.0 else (udpPackets.toDouble() / totalPackets) * 100

@@ -2,3 +2,6 @@ target/
 idea/
 *.iml
 .m2/
+
+# Local secrets — never commit
+.env

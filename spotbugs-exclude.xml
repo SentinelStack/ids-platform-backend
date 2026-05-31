@@ -5,4 +5,19 @@
         <Method name="readClasspathFile"/>
         <Bug pattern="SA_LOCAL_SELF_ASSIGNMENT"/>
     </Match>
+
+    <Match>
+        <Class name="~ro\.puk3p\.sentinel\..*"/>
+        <Bug pattern="BC_BAD_CAST_TO_ABSTRACT_COLLECTION"/>
+    </Match>
+
+    <Match>
+        <Class name="~ro\.puk3p\.sentinel\..*RepositoryCustomImpl"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+    <Match>
+        <Class name="ro.puk3p.sentinel.common.response.PagedResponse"/>
+        <Bug pattern="EQ_DOESNT_OVERRIDE_EQUALS"/>
+    </Match>
 </FindBugsFilter>

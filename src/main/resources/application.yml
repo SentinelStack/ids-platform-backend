@@ -2,23 +2,31 @@ server:
   port: 8080
 
 spring:
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/ids_platform}
-    username: ${DB_USERNAME:ids_user}
-    password: ${DB_PASSWORD:ids_password}
-    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-    properties:
-      hibernate:
-        format_sql: true
-        jdbc:
-          time_zone: UTC
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://194.62.122.30:27017/ids_platform}
+      # Explicit DB name. On Spring Boot 4 / Spring Data Mongo 5 the database
+      # segment of the URI is not applied on its own (it falls back to "test"),
+      # so it is pinned here.
+      database: ${MONGODB_DATABASE:ids_platform}
+      # Index/collection creation is owned by Mongock migrations, not Spring.
+      auto-index-creation: false
+
+mongock:
+  migration-scan-package: ro.puk3p.sentinel.migration
+  # Standalone MongoDB (no replica set) does not support multi-document
+  # transactions; index/collection DDL does not need them.
+  transaction-enabled: false
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+
+
+app:
+  cors:
+    # Comma-separated list of browser origins allowed to call /api/**.
+    # Defaults to the Angular dev server; override with CORS_ALLOWED_ORIGINS.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
