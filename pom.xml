@@ -10,7 +10,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>ro.georgelupu</groupId>
+    <groupId>ro.puk3p.sentinel</groupId>
     <artifactId>ids-platform-backend</artifactId>
     <version>1.1.0</version>
     <name>ids-platform-backend</name>
