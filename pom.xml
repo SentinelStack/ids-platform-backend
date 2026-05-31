@@ -12,7 +12,7 @@
 
     <groupId>ro.georgelupu</groupId>
     <artifactId>ids-platform-backend</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <name>ids-platform-backend</name>
     <description>Backend foundation for OpenWrt-based IDS/IPS platform</description>
 
