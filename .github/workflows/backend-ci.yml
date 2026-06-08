@@ -56,6 +56,8 @@ jobs:
       deploy_path: /opt/ids-platform-backend
       service_name: ids-platform-backend
       jar_name: app.jar
+      environment: qa
+      vault_render: true
     secrets:
       ssh_host: ${{ secrets.QA_SSH_HOST }}
       ssh_user: ${{ secrets.QA_SSH_USER }}
