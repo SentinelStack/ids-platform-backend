@@ -7,9 +7,25 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNoResource(
+        ex: NoResourceFoundException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+            ErrorResponse(
+                status = HttpStatus.NOT_FOUND.value(),
+                error = HttpStatus.NOT_FOUND.reasonPhrase,
+                message = "No endpoint for ${request.method} ${request.requestURI}",
+                path = request.requestURI,
+            ),
+        )
+    }
+
     @ExceptionHandler(ResourceNotFoundException::class)
     fun handleNotFound(
         ex: ResourceNotFoundException,

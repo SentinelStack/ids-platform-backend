@@ -12,7 +12,7 @@
 
     <groupId>ro.puk3p.sentinel</groupId>
     <artifactId>ids-platform-backend</artifactId>
-    <version>1.1.4</version>
+    <version>1.1.5</version>
     <name>ids-platform-backend</name>
     <description>Backend foundation for OpenWrt-based IDS/IPS platform</description>
 
