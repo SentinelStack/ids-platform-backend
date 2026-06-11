@@ -1,22 +1,22 @@
 package ro.puk3p.sentinel.device.controller
 
 import jakarta.validation.Valid
-import org.springframework.data.domain.PageRequest
-import org.springframework.data.domain.Pageable
-import org.springframework.data.domain.Sort
 import org.springframework.hateoas.EntityModel
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.common.hateoas.PageLinks
 import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.common.response.PagedResponse
+import ro.puk3p.sentinel.common.web.QueryParams
 import ro.puk3p.sentinel.device.assembler.DeviceModelAssembler
 import ro.puk3p.sentinel.device.dto.DeviceHeartbeatRequest
 import ro.puk3p.sentinel.device.dto.DeviceRegisterRequest
@@ -39,6 +39,7 @@ class DeviceController(
     }
 
     @PostMapping("/register")
+    @ResponseStatus(HttpStatus.CREATED)
     fun register(
         @Valid @RequestBody request: DeviceRegisterRequest,
     ): ApiResponse<EntityModel<DeviceResponse>> {
@@ -52,7 +53,7 @@ class DeviceController(
     @PostMapping("/{deviceId}/heartbeat")
     fun heartbeat(
         @PathVariable deviceId: String,
-        @RequestBody(required = false) request: DeviceHeartbeatRequest?,
+        @RequestBody(required = false) @Valid request: DeviceHeartbeatRequest?,
     ): ApiResponse<EntityModel<DeviceStatusResponse>> {
         return ApiResponse(
             success = true,
@@ -68,8 +69,8 @@ class DeviceController(
         @RequestParam(defaultValue = "lastSeenAt") sortBy: String,
         @RequestParam(defaultValue = "desc") direction: String,
     ): ApiResponse<PagedResponse<EntityModel<DeviceResponse>>> {
-        val sort = if (direction.equals("asc", ignoreCase = true)) Sort.by(sortBy).ascending() else Sort.by(sortBy).descending()
-        val pageable: Pageable = PageRequest.of(page, size, sort)
+        val sort = QueryParams.sort(sortBy, direction, setOf("lastSeenAt", "name", "status", "createdAt", "deviceId"))
+        val pageable = QueryParams.pageRequest(page, size, sort)
         val result = deviceService.getAll(pageable)
 
         val paged =

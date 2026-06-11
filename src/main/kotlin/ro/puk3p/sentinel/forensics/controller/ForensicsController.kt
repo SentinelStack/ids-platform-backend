@@ -1,29 +1,29 @@
 package ro.puk3p.sentinel.forensics.controller
 
 import jakarta.validation.Valid
-import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
-import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.hateoas.EntityModel
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.common.hateoas.PageLinks
 import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.common.response.PagedResponse
+import ro.puk3p.sentinel.common.web.QueryParams
 import ro.puk3p.sentinel.forensics.assembler.ForensicsTimelineModelAssembler
 import ro.puk3p.sentinel.forensics.assembler.PacketSummaryModelAssembler
 import ro.puk3p.sentinel.forensics.dto.ForensicsTimelineEntry
 import ro.puk3p.sentinel.forensics.dto.PacketSummaryCreateRequest
 import ro.puk3p.sentinel.forensics.dto.PacketSummaryResponse
 import ro.puk3p.sentinel.forensics.service.ForensicsService
-import java.time.Instant
 
 @RestController
 @RequestMapping("/api/forensics")
@@ -33,6 +33,7 @@ class ForensicsController(
     private val forensicsTimelineModelAssembler: ForensicsTimelineModelAssembler,
 ) {
     @PostMapping("/packets")
+    @ResponseStatus(HttpStatus.CREATED)
     fun createPacket(
         @Valid @RequestBody request: PacketSummaryCreateRequest,
     ): ApiResponse<EntityModel<PacketSummaryResponse>> {
@@ -48,7 +49,7 @@ class ForensicsController(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): ApiResponse<PagedResponse<EntityModel<PacketSummaryResponse>>> {
-        val result = forensicsService.getPackets(PageRequest.of(page, size, Sort.by("timestamp").descending()))
+        val result = forensicsService.getPackets(QueryParams.pageRequest(page, size, Sort.by("timestamp").descending()))
 
         val paged =
             PagedResponse(
@@ -72,7 +73,7 @@ class ForensicsController(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): ApiResponse<PagedResponse<EntityModel<PacketSummaryResponse>>> {
-        val result = forensicsService.getByAlert(alertId, PageRequest.of(page, size, Sort.by("timestamp").descending()))
+        val result = forensicsService.getByAlert(alertId, QueryParams.pageRequest(page, size, Sort.by("timestamp").descending()))
 
         val paged =
             PagedResponse(
@@ -92,12 +93,17 @@ class ForensicsController(
 
     @GetMapping("/timeline")
     fun timeline(
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) from: Instant?,
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) to: Instant?,
+        @RequestParam(required = false) from: String?,
+        @RequestParam(required = false) to: String?,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): ApiResponse<PagedResponse<EntityModel<ForensicsTimelineEntry>>> {
-        val result = forensicsService.getTimeline(from, to, PageRequest.of(page, size, Sort.by("timestamp").descending()))
+        val result =
+            forensicsService.getTimeline(
+                QueryParams.parseInstant("from", from),
+                QueryParams.parseInstant("to", to),
+                QueryParams.pageRequest(page, size, Sort.by("timestamp").descending()),
+            )
 
         val paged =
             PagedResponse(
