@@ -23,8 +23,15 @@ class AlertModelAssembler : RepresentationModelAssembler<AlertResponse, EntityMo
                     .withRel("alerts"),
             )
 
+        // State-aware action links: the client discovers the available actions
+        // from the resource (acknowledge/assign only while open, contain while
+        // the source isn't yet blocked).
         if (!alert.acknowledged) {
             model.add(linkTo(methodOn(AlertController::class.java).acknowledge(alert.alertId)).withRel("acknowledge"))
+            model.add(linkTo(methodOn(AlertController::class.java).assign(alert.alertId, null)).withRel("assign"))
+        }
+        if (!alert.contained) {
+            model.add(linkTo(methodOn(AlertController::class.java).contain(alert.alertId)).withRel("contain"))
         }
 
         return model

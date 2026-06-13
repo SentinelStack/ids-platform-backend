@@ -1,5 +1,8 @@
 server:
   port: 8080
+  # Honour X-Forwarded-* from nginx so HATEOAS links use the public https host
+  # (not the internal http origin) — otherwise the browser blocks them as mixed content.
+  forward-headers-strategy: framework
 
 spring:
   data:
