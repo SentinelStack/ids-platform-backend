@@ -26,7 +26,12 @@ interface AlertService {
 
     fun acknowledge(alertId: String): AlertResponse
 
-    fun assign(alertId: String): AlertResponse
+    fun analysts(): List<String>
+
+    fun assign(
+        alertId: String,
+        analyst: String?,
+    ): AlertResponse
 
     fun contain(alertId: String): ContainmentResponse
 }

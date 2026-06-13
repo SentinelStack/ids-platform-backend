@@ -141,7 +141,12 @@ class AlertControllerTest {
 
         override fun acknowledge(alertId: String): AlertResponse = sample(acknowledged = true)
 
-        override fun assign(alertId: String): AlertResponse = sample(acknowledged = false, assignee = "Ana Popescu")
+        override fun analysts(): List<String> = listOf("Ana Popescu", "Mihai Ionescu")
+
+        override fun assign(
+            alertId: String,
+            analyst: String?,
+        ): AlertResponse = sample(acknowledged = false, assignee = analyst ?: "Ana Popescu")
 
         override fun contain(alertId: String): ContainmentResponse =
             ContainmentResponse(

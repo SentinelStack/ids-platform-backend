@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.alert.assembler.AlertModelAssembler
 import ro.puk3p.sentinel.alert.dto.AlertCreateRequest
 import ro.puk3p.sentinel.alert.dto.AlertResponse
+import ro.puk3p.sentinel.alert.dto.AssignRequest
 import ro.puk3p.sentinel.alert.dto.ContainmentResponse
 import ro.puk3p.sentinel.alert.model.AlertFilter
 import ro.puk3p.sentinel.alert.model.Protocol
@@ -131,11 +132,17 @@ class AlertController(
         return ApiResponse(success = true, message = "Alert acknowledged", data = alertModelAssembler.toModel(alertService.acknowledge(alertId)))
     }
 
+    @GetMapping("/analysts")
+    fun analysts(): ApiResponse<List<String>> {
+        return ApiResponse(success = true, message = "Analyst roster", data = alertService.analysts())
+    }
+
     @PatchMapping("/{alertId}/assign")
     fun assign(
         @PathVariable alertId: String,
+        @RequestBody(required = false) request: AssignRequest?,
     ): ApiResponse<EntityModel<AlertResponse>> {
-        return ApiResponse(success = true, message = "Analyst assigned", data = alertModelAssembler.toModel(alertService.assign(alertId)))
+        return ApiResponse(success = true, message = "Analyst assigned", data = alertModelAssembler.toModel(alertService.assign(alertId, request?.analyst)))
     }
 
     @PostMapping("/{alertId}/contain")

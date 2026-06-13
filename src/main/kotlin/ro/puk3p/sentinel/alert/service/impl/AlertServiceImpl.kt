@@ -65,20 +65,26 @@ class AlertServiceImpl(
         return AlertMapper.toResponse(alertRepository.save(entity))
     }
 
+    override fun analysts(): List<String> = ANALYSTS
+
     /**
-     * Assign the incident to the least-loaded analyst on the response roster
-     * (fewest currently-open assignments), making the incident "Investigating".
-     * Re-assigning an already-owned incident rotates it to the next analyst.
+     * Assign the incident to an analyst, making it "Investigating". A specific
+     * analyst from the roster may be requested; otherwise the least-loaded
+     * analyst (fewest currently-open assignments) is chosen automatically.
      */
-    override fun assign(alertId: String): AlertResponse {
+    override fun assign(
+        alertId: String,
+        analyst: String?,
+    ): AlertResponse {
         val entity = requireAlert(alertId)
-        val candidates =
-            if (entity.assignee == null) ANALYSTS else ANALYSTS.filter { it != entity.assignee }
-        val next =
-            candidates.minByOrNull { alertRepository.countByAssigneeAndAcknowledgedFalse(it) }
-                ?: ANALYSTS.first()
-        entity.assignee = next
+        entity.assignee = analyst?.takeIf { it in ANALYSTS } ?: leastLoaded(entity.assignee)
         return AlertMapper.toResponse(alertRepository.save(entity))
+    }
+
+    private fun leastLoaded(current: String?): String {
+        val candidates = if (current == null) ANALYSTS else ANALYSTS.filter { it != current }
+        return candidates.minByOrNull { alertRepository.countByAssigneeAndAcknowledgedFalse(it) }
+            ?: ANALYSTS.first()
     }
 
     /**
