@@ -1,6 +1,7 @@
 package ro.puk3p.sentinel.alert.controller
 
 import jakarta.validation.Valid
+import org.springframework.hateoas.CollectionModel
 import org.springframework.hateoas.EntityModel
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn
@@ -27,6 +28,7 @@ import ro.puk3p.sentinel.common.hateoas.PageLinks
 import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.common.response.PagedResponse
 import ro.puk3p.sentinel.common.web.QueryParams
+import ro.puk3p.sentinel.forensics.controller.ForensicsController
 
 @RestController
 @RequestMapping("/api/alerts")
@@ -133,8 +135,15 @@ class AlertController(
     }
 
     @GetMapping("/analysts")
-    fun analysts(): ApiResponse<List<String>> {
-        return ApiResponse(success = true, message = "Analyst roster", data = alertService.analysts())
+    fun analysts(): ApiResponse<CollectionModel<String>> {
+        val model =
+            CollectionModel.of(
+                alertService.analysts(),
+                linkTo(methodOn(AlertController::class.java).analysts()).withSelfRel(),
+                linkTo(methodOn(AlertController::class.java).getAll(null, null, null, null, null, null, 0, 20, "timestamp", "desc"))
+                    .withRel("alerts"),
+            )
+        return ApiResponse(success = true, message = "Analyst roster", data = model)
     }
 
     @PatchMapping("/{alertId}/assign")
@@ -148,10 +157,17 @@ class AlertController(
     @PostMapping("/{alertId}/contain")
     fun contain(
         @PathVariable alertId: String,
-    ): ApiResponse<ContainmentResponse> {
+    ): ApiResponse<EntityModel<ContainmentResponse>> {
         val containment = alertService.contain(alertId)
         val message = if (containment.alreadyActive) "Source already contained" else "Source contained"
-        return ApiResponse(success = true, message = message, data = containment)
+        val model =
+            EntityModel.of(
+                containment,
+                linkTo(methodOn(AlertController::class.java).contain(alertId)).withSelfRel(),
+                linkTo(methodOn(AlertController::class.java).getById(alertId)).withRel("alert"),
+                linkTo(methodOn(ForensicsController::class.java).getByAlert(alertId, 0, 20)).withRel("forensics"),
+            )
+        return ApiResponse(success = true, message = message, data = model)
     }
 
     companion object {
