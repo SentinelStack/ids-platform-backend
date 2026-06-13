@@ -1,6 +1,7 @@
 package ro.puk3p.sentinel.console
 
 import org.springframework.hateoas.EntityModel
+import org.springframework.hateoas.Link
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn
 import org.springframework.web.bind.annotation.GetMapping
@@ -21,12 +22,16 @@ class ConsoleController(
 ) {
     @GetMapping("/incidents")
     fun incidents(): ApiResponse<EntityModel<IncidentsView>> {
+        val selfHref = linkTo(methodOn(ConsoleController::class.java).incidents()).toUri().toString()
         val model =
             EntityModel.of(
                 consoleService.incidents(),
                 linkTo(methodOn(ConsoleController::class.java).incidents()).withSelfRel(),
                 linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("dashboard"),
                 linkTo(methodOn(ConsoleController::class.java).traffic()).withRel("traffic"),
+                // Templated per-incident links: the alert resource and its forensics view.
+                Link.of(alertTemplate()).withRel("alert"),
+                Link.of("$selfHref/{alertId}/forensics").withRel("forensics"),
                 alertsLink(),
             )
         return ApiResponse(success = true, message = "Incidents view", data = model)
@@ -74,4 +79,10 @@ class ConsoleController(
     private fun alertsLink() =
         linkTo(methodOn(AlertController::class.java).getAll(null, null, null, null, null, null, 0, 20, "timestamp", "desc"))
             .withRel("alerts")
+
+    /** Templated link to a single alert resource: …/api/alerts/{alertId}. */
+    private fun alertTemplate(): String {
+        val base = linkTo(methodOn(AlertController::class.java).getById("X")).toUri().toString()
+        return base.removeSuffix("X") + "{alertId}"
+    }
 }

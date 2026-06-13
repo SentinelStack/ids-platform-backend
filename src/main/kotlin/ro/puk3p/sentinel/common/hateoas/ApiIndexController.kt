@@ -7,8 +7,10 @@ import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import ro.puk3p.sentinel.alert.controller.AlertController
 import ro.puk3p.sentinel.common.response.ApiResponse
+import ro.puk3p.sentinel.console.ConsoleController
 import ro.puk3p.sentinel.device.controller.DeviceController
 import ro.puk3p.sentinel.forensics.controller.ForensicsController
 import ro.puk3p.sentinel.traffic.controller.TrafficStatsController
@@ -29,12 +31,25 @@ class ApiIndexController {
                 .withRel("alerts"),
         )
         model.add(linkTo(methodOn(AlertController::class.java).getLatest()).withRel("latest-alert"))
+        model.add(linkTo(methodOn(AlertController::class.java).analysts()).withRel("analysts"))
         model.add(linkTo(methodOn(TrafficStatsController::class.java).latest()).withRel("latest-traffic"))
         model.add(linkTo(methodOn(TrafficStatsController::class.java).summary()).withRel("traffic-summary"))
         model.add(linkTo(methodOn(ForensicsController::class.java).getPackets(0, 20)).withRel("forensics"))
         model.add(linkTo(methodOn(ForensicsController::class.java).timeline(null, null, 0, 20)).withRel("forensics-timeline"))
+
+        // Dashboard console views.
+        model.add(linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("console-dashboard"))
+        model.add(linkTo(methodOn(ConsoleController::class.java).traffic()).withRel("console-traffic"))
+        model.add(linkTo(methodOn(ConsoleController::class.java).incidents()).withRel("console-incidents"))
+
+        // Report-export service (same gateway host, different upstream).
+        model.add(Link.of(absolute("/api/reports/meta")).withRel("reports"))
         model.add(Link.of("/actuator/health").withRel("health"))
 
         return ApiResponse(success = true, message = "API index", data = model)
     }
+
+    /** Absolute URL on the public host (honours nginx X-Forwarded-*). */
+    private fun absolute(path: String): String =
+        ServletUriComponentsBuilder.fromCurrentContextPath().path(path).build().toUriString()
 }
