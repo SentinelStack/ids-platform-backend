@@ -20,4 +20,29 @@
         <Class name="ro.puk3p.sentinel.common.response.PagedResponse"/>
         <Bug pattern="EQ_DOESNT_OVERRIDE_EQUALS"/>
     </Match>
+
+    <!-- Kotlin compiler artifacts: string templates, smart-casts and exhaustive
+         enum `when` produce SpotBugs noise on the generated JVM bytecode. -->
+    <Match>
+        <Class name="~ro\.puk3p\.sentinel\..*"/>
+        <Bug pattern="SA_LOCAL_SELF_ASSIGNMENT,RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE,SF_SWITCH_NO_DEFAULT"/>
+    </Match>
+
+    <!-- Immutable console view models / DTOs intentionally expose read-only lists. -->
+    <Match>
+        <Class name="~ro\.puk3p\.sentinel\.console\..*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- The analyst roster is an immutable Kotlin list. -->
+    <Match>
+        <Class name="ro.puk3p.sentinel.alert.service.impl.AlertServiceImpl"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+
+    <!-- Null-safe RestClient body handling, flagged on the bytecode path. -->
+    <Match>
+        <Class name="ro.puk3p.sentinel.console.GeoLookup"/>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
 </FindBugsFilter>
