@@ -41,6 +41,8 @@ object AlertMapper {
             windowSeconds = entity.windowSeconds,
             description = entity.description,
             acknowledged = entity.acknowledged,
+            assignee = entity.assignee,
+            contained = entity.contained,
             createdAt = entity.createdAt!!,
         )
     }

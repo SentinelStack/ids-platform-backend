@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.alert.assembler.AlertModelAssembler
 import ro.puk3p.sentinel.alert.dto.AlertCreateRequest
 import ro.puk3p.sentinel.alert.dto.AlertResponse
+import ro.puk3p.sentinel.alert.dto.ContainmentResponse
 import ro.puk3p.sentinel.alert.model.AlertFilter
 import ro.puk3p.sentinel.alert.model.Protocol
 import ro.puk3p.sentinel.alert.model.Severity
@@ -128,6 +129,22 @@ class AlertController(
         @PathVariable alertId: String,
     ): ApiResponse<EntityModel<AlertResponse>> {
         return ApiResponse(success = true, message = "Alert acknowledged", data = alertModelAssembler.toModel(alertService.acknowledge(alertId)))
+    }
+
+    @PatchMapping("/{alertId}/assign")
+    fun assign(
+        @PathVariable alertId: String,
+    ): ApiResponse<EntityModel<AlertResponse>> {
+        return ApiResponse(success = true, message = "Analyst assigned", data = alertModelAssembler.toModel(alertService.assign(alertId)))
+    }
+
+    @PostMapping("/{alertId}/contain")
+    fun contain(
+        @PathVariable alertId: String,
+    ): ApiResponse<ContainmentResponse> {
+        val containment = alertService.contain(alertId)
+        val message = if (containment.alreadyActive) "Source already contained" else "Source contained"
+        return ApiResponse(success = true, message = message, data = containment)
     }
 
     companion object {

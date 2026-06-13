@@ -1,10 +1,12 @@
 package ro.puk3p.sentinel.console
 
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.console.dto.DashboardView
+import ro.puk3p.sentinel.console.dto.IncidentForensicsView
 import ro.puk3p.sentinel.console.dto.IncidentsView
 import ro.puk3p.sentinel.console.dto.TrafficView
 
@@ -16,6 +18,12 @@ class ConsoleController(
     @GetMapping("/incidents")
     fun incidents(): ApiResponse<IncidentsView> =
         ApiResponse(success = true, message = "Incidents view", data = consoleService.incidents())
+
+    @GetMapping("/incidents/{alertId}/forensics")
+    fun incidentForensics(
+        @PathVariable alertId: String,
+    ): ApiResponse<IncidentForensicsView> =
+        ApiResponse(success = true, message = "Incident forensics", data = consoleService.incidentForensics(alertId))
 
     @GetMapping("/traffic")
     fun traffic(): ApiResponse<TrafficView> =

@@ -18,6 +18,7 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean
 import ro.puk3p.sentinel.alert.assembler.AlertModelAssembler
 import ro.puk3p.sentinel.alert.dto.AlertCreateRequest
 import ro.puk3p.sentinel.alert.dto.AlertResponse
+import ro.puk3p.sentinel.alert.dto.ContainmentResponse
 import ro.puk3p.sentinel.alert.model.AlertFilter
 import ro.puk3p.sentinel.alert.model.AlertType
 import ro.puk3p.sentinel.alert.model.Protocol
@@ -140,7 +141,25 @@ class AlertControllerTest {
 
         override fun acknowledge(alertId: String): AlertResponse = sample(acknowledged = true)
 
-        private fun sample(acknowledged: Boolean): AlertResponse =
+        override fun assign(alertId: String): AlertResponse = sample(acknowledged = false, assignee = "Ana Popescu")
+
+        override fun contain(alertId: String): ContainmentResponse =
+            ContainmentResponse(
+                containmentId = "c-1",
+                alertId = alertId,
+                sourceIp = "203.0.113.10",
+                deviceId = "router-1",
+                reason = "Containment for PORT_SCAN_SUSPECTED from 203.0.113.10",
+                severity = Severity.HIGH,
+                active = true,
+                createdAt = Instant.parse("2026-06-01T12:00:02Z"),
+                alreadyActive = false,
+            )
+
+        private fun sample(
+            acknowledged: Boolean,
+            assignee: String? = null,
+        ): AlertResponse =
             AlertResponse(
                 alertId = "a-1",
                 deviceId = "router-1",
@@ -157,6 +176,8 @@ class AlertControllerTest {
                 windowSeconds = 5,
                 description = null,
                 acknowledged = acknowledged,
+                assignee = assignee,
+                contained = false,
                 createdAt = Instant.parse("2026-06-01T12:00:01Z"),
             )
     }

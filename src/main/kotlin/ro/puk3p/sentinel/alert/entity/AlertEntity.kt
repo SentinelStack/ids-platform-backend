@@ -31,6 +31,9 @@ class AlertEntity(
     var windowSeconds: Int = 0,
     var description: String? = null,
     var acknowledged: Boolean = false,
+    var assignee: String? = null,
+    var contained: Boolean = false,
+    var containedAt: Instant? = null,
     @CreatedDate
     var createdAt: Instant? = null,
 )

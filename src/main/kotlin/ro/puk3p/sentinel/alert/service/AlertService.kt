@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import ro.puk3p.sentinel.alert.dto.AlertCreateRequest
 import ro.puk3p.sentinel.alert.dto.AlertResponse
+import ro.puk3p.sentinel.alert.dto.ContainmentResponse
 import ro.puk3p.sentinel.alert.model.AlertFilter
 
 interface AlertService {
@@ -24,4 +25,8 @@ interface AlertService {
     ): Page<AlertResponse>
 
     fun acknowledge(alertId: String): AlertResponse
+
+    fun assign(alertId: String): AlertResponse
+
+    fun contain(alertId: String): ContainmentResponse
 }

@@ -21,5 +21,7 @@ data class AlertResponse(
     val windowSeconds: Int,
     val description: String?,
     val acknowledged: Boolean,
+    val assignee: String?,
+    val contained: Boolean,
     val createdAt: Instant,
 )

@@ -7,11 +7,15 @@ import ro.puk3p.sentinel.alert.entity.AlertEntity
 import ro.puk3p.sentinel.alert.model.AlertType
 import ro.puk3p.sentinel.alert.model.Severity
 import ro.puk3p.sentinel.alert.repository.AlertRepository
+import ro.puk3p.sentinel.common.exception.ResourceNotFoundException
 import ro.puk3p.sentinel.console.dto.AffectedAsset
 import ro.puk3p.sentinel.console.dto.DashboardKpis
 import ro.puk3p.sentinel.console.dto.DashboardView
 import ro.puk3p.sentinel.console.dto.DistBar
 import ro.puk3p.sentinel.console.dto.FlowPoint
+import ro.puk3p.sentinel.console.dto.ForensicPacket
+import ro.puk3p.sentinel.console.dto.ForensicStat
+import ro.puk3p.sentinel.console.dto.IncidentForensicsView
 import ro.puk3p.sentinel.console.dto.IncidentKpis
 import ro.puk3p.sentinel.console.dto.IncidentRow
 import ro.puk3p.sentinel.console.dto.IncidentsView
@@ -119,8 +123,9 @@ class ConsoleService(
             category = CATEGORIES[a.type] ?: "Anomaly",
             status = status.first,
             statusIcon = status.second,
-            assignee = if (a.acknowledged) "System" else if (isInvestigating(a)) "Analyst" else "Unassigned",
+            assignee = a.assignee ?: if (a.acknowledged) "System" else "Unassigned",
             acknowledged = a.acknowledged,
+            contained = a.contained,
             confidence = ((base + jitter) * 100).roundToInt(),
             anomalyScore = "%.2f".format(base + jitter - 0.02),
             packetRate = if (rate >= 1000) "%.1fk pkt/s".format(rate / 1000) else "${rate.roundToInt()} pkt/s",
@@ -153,6 +158,88 @@ class ConsoleService(
             .mapIndexed { i, e ->
                 AffectedAsset(names.getOrElse(i) { "Internal Host" }, e.key, icons.getOrElse(i) { "lan" }, levels.getOrElse(i) { "info" })
             }
+    }
+
+    /**
+     * Forensic detail for a single incident. Captured packets aren't tagged with
+     * an alertId, so we correlate by the attacker's source IP — "all traffic we
+     * captured from this source" — and roll it up into a forensic summary.
+     */
+    fun incidentForensics(alertId: String): IncidentForensicsView {
+        val a =
+            alertRepository.findByAlertId(alertId)
+                .orElseThrow { ResourceNotFoundException("Alert not found: $alertId") }
+        val packets =
+            packetSummaryRepository
+                .findBySourceIpOrderByTimestampDesc(a.sourceIp, PageRequest.of(0, 60))
+                .content
+
+        val protoTotal = packets.size.coerceAtLeast(1)
+        val protocols =
+            packets.groupingBy { it.protocol.name }.eachCount().entries
+                .sortedByDescending { it.value }
+                .map { ProtocolShare(it.key, round1(it.value.toDouble() / protoTotal * 100)) }
+        val topPorts =
+            packets.groupingBy { it.destinationPort }.eachCount().entries
+                .sortedByDescending { it.value }
+                .take(4)
+                .map { (port, count) ->
+                    TopPort("$port" + (PORT_NAMES[port]?.let { " ($it)" } ?: ""), "${formatCount(count.toLong())} PKTS", port in RISKY_PORTS)
+                }
+        val targets = packets.map { it.destinationIp }.filter { it.isNotBlank() }.toSet()
+        val span =
+            if (packets.size >= 2) {
+                humanizeDuration(Duration.between(packets.last().timestamp, packets.first().timestamp))
+            } else {
+                "—"
+            }
+
+        val stats =
+            listOf(
+                ForensicStat("Captured Packets", "${packets.size}"),
+                ForensicStat("Total Volume", formatBytes(packets.sumOf { it.packetSize })),
+                ForensicStat("Unique Targets", "${targets.size}"),
+                ForensicStat("Capture Span", span),
+                ForensicStat("Alert Window", "${a.windowSeconds}s"),
+                ForensicStat("Flagged Packets", "${a.packetCount}"),
+            )
+        val packetRows =
+            packets.take(20).map {
+                ForensicPacket(
+                    timestamp = it.timestamp.toString(),
+                    protocol = it.protocol.name,
+                    source = it.sourceIp.ifBlank { "—" },
+                    destination = it.destinationIp.ifBlank { "—" },
+                    port = it.destinationPort,
+                    size = formatBytes(it.packetSize),
+                    flags = it.tcpFlags ?: "—",
+                    suspicious = it.destinationPort in RISKY_PORTS,
+                )
+            }
+
+        return IncidentForensicsView(
+            incId = incidentId(a),
+            title = TITLES[a.type] ?: humanize(a.type.name),
+            source = a.sourceIp.ifBlank { "—" },
+            target = a.destinationIp.ifBlank { "—" },
+            severity = a.severity.name,
+            category = CATEGORIES[a.type] ?: "Anomaly",
+            contained = a.contained,
+            stats = stats,
+            protocols = protocols,
+            topPorts = topPorts,
+            packets = packetRows,
+            empty = packets.isEmpty(),
+        )
+    }
+
+    private fun humanizeDuration(d: Duration): String {
+        val s = d.seconds
+        return when {
+            s >= 3600 -> "%.1fh".format(s / 3600.0)
+            s >= 60 -> "${s / 60}m ${s % 60}s"
+            else -> "${s}s"
+        }
     }
 
     // ── Traffic ────────────────────────────────────────────────────────────
@@ -316,8 +403,7 @@ class ConsoleService(
     private fun recentAlerts(): List<AlertEntity> =
         alertRepository.findAll(Sort.by(Sort.Direction.DESC, "timestamp")).take(MAX_ALERTS)
 
-    private fun isInvestigating(a: AlertEntity): Boolean =
-        !a.acknowledged && (a.severity == Severity.CRITICAL || a.severity == Severity.HIGH)
+    private fun isInvestigating(a: AlertEntity): Boolean = !a.acknowledged && a.assignee != null
 
     private fun statusOf(a: AlertEntity): Pair<String, String> =
         when {

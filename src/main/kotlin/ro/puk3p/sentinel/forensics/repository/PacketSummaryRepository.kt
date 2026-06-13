@@ -19,4 +19,9 @@ interface PacketSummaryRepository : MongoRepository<PacketSummaryEntity, String>
         to: Instant,
         pageable: Pageable,
     ): Page<PacketSummaryEntity>
+
+    fun findBySourceIpOrderByTimestampDesc(
+        sourceIp: String,
+        pageable: Pageable,
+    ): Page<PacketSummaryEntity>
 }

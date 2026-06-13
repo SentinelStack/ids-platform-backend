@@ -15,4 +15,6 @@ interface AlertRepository : MongoRepository<AlertEntity, String>, AlertRepositor
         deviceId: String,
         pageable: Pageable,
     ): Page<AlertEntity>
+
+    fun countByAssigneeAndAcknowledgedFalse(assignee: String): Long
 }

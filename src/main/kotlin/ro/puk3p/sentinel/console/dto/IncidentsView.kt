@@ -27,6 +27,7 @@ data class IncidentRow(
     val statusIcon: String,
     val assignee: String,
     val acknowledged: Boolean,
+    val contained: Boolean,
     val confidence: Int,
     val anomalyScore: String,
     val packetRate: String,
