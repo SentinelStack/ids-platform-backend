@@ -44,6 +44,8 @@ class ApiIndexController {
 
         // Report-export service (same gateway host, different upstream).
         model.add(Link.of(absolute("/api/reports/meta")).withRel("reports"))
+        // 24h threat-volume histogram (ClickHouse-backed, full history).
+        model.add(Link.of(absolute("/api/reports/volume")).withRel("threat-volume"))
         model.add(Link.of("/actuator/health").withRel("health"))
 
         return ApiResponse(success = true, message = "API index", data = model)
