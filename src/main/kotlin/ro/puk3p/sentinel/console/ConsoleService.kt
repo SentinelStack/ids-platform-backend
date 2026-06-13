@@ -61,44 +61,6 @@ class ConsoleService(
         )
     }
 
-    /** The live incident queue as a CSV report — the same rows shown on screen. */
-    fun incidentsCsv(): String {
-        val rows = recentAlerts().map(::toIncidentRow)
-        val sb = StringBuilder()
-        sb.append(CSV_HEADER).append('\n')
-        for (r in rows) {
-            sb.append(
-                listOf(
-                    r.incId,
-                    r.timestamp,
-                    r.severity,
-                    r.title,
-                    r.category,
-                    r.source,
-                    r.target,
-                    r.targetPort.toString(),
-                    r.protocol,
-                    r.status,
-                    r.assignee,
-                    r.acknowledged.toString(),
-                    r.contained.toString(),
-                    r.confidence.toString(),
-                    r.anomalyScore,
-                    r.packetRate,
-                    r.volume,
-                ).joinToString(",", transform = ::csvCell),
-            ).append('\n')
-        }
-        return sb.toString()
-    }
-
-    private fun csvCell(value: String): String =
-        if (value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) {
-            "\"${value.replace("\"", "\"\"")}\""
-        } else {
-            value
-        }
-
     private fun incidentKpis(alerts: List<AlertEntity>): IncidentKpis {
         val lastHour = Instant.now().minus(Duration.ofHours(1))
         val recent = alerts.count { (it.createdAt ?: it.timestamp).isAfter(lastHour) }
@@ -515,9 +477,6 @@ class ConsoleService(
 
     companion object {
         private const val MAX_ALERTS = 500
-        private const val CSV_HEADER =
-            "Incident ID,Timestamp,Severity,Title,Category,Source,Target,Target Port," +
-                "Protocol,Status,Assignee,Acknowledged,Contained,Confidence %,Anomaly Score,Packet Rate,Volume"
         private const val DEVICE_LAT = 44.4268
         private const val DEVICE_LNG = 26.1025
         private val PRIVATE_RANGE = Regex("^(10\\.|127\\.|169\\.254\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)")
