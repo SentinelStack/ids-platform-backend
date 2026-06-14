@@ -1,11 +1,13 @@
 package ro.puk3p.sentinel.console
 
+import org.springframework.hateoas.CollectionModel
 import org.springframework.hateoas.EntityModel
 import org.springframework.hateoas.Link
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo
 import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.alert.controller.AlertController
@@ -13,6 +15,8 @@ import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.console.dto.DashboardView
 import ro.puk3p.sentinel.console.dto.IncidentForensicsView
 import ro.puk3p.sentinel.console.dto.IncidentsView
+import ro.puk3p.sentinel.console.dto.RuntimeLogLine
+import ro.puk3p.sentinel.console.dto.TopologyEvent
 import ro.puk3p.sentinel.console.dto.TrafficView
 
 @RestController
@@ -74,6 +78,33 @@ class ConsoleController(
                 alertsLink(),
             )
         return ApiResponse(success = true, message = "Dashboard view", data = model)
+    }
+
+    @GetMapping("/topology/events")
+    fun topologyEvents(
+        @RequestParam(defaultValue = "40") limit: Int,
+    ): ApiResponse<CollectionModel<TopologyEvent>> {
+        val model =
+            CollectionModel.of(
+                consoleService.topologyEvents(limit),
+                linkTo(methodOn(ConsoleController::class.java).topologyEvents(limit)).withSelfRel(),
+                linkTo(methodOn(ConsoleController::class.java).topologyLogs(40)).withRel("topology-logs"),
+                linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("dashboard"),
+            )
+        return ApiResponse(success = true, message = "Topology events", data = model)
+    }
+
+    @GetMapping("/topology/logs")
+    fun topologyLogs(
+        @RequestParam(defaultValue = "40") limit: Int,
+    ): ApiResponse<CollectionModel<RuntimeLogLine>> {
+        val model =
+            CollectionModel.of(
+                consoleService.runtimeLogs(limit),
+                linkTo(methodOn(ConsoleController::class.java).topologyLogs(limit)).withSelfRel(),
+                linkTo(methodOn(ConsoleController::class.java).topologyEvents(40)).withRel("topology-events"),
+            )
+        return ApiResponse(success = true, message = "Runtime logs", data = model)
     }
 
     private fun alertsLink() =

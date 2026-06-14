@@ -28,8 +28,11 @@ import ro.puk3p.sentinel.console.dto.ThreatArc
 import ro.puk3p.sentinel.console.dto.TimelineBar
 import ro.puk3p.sentinel.console.dto.TopPort
 import ro.puk3p.sentinel.console.dto.TopSource
+import ro.puk3p.sentinel.console.dto.TopologyEvent
 import ro.puk3p.sentinel.console.dto.TrafficView
+import ro.puk3p.sentinel.console.dto.RuntimeLogLine
 import ro.puk3p.sentinel.console.dto.VolumeBar
+import ro.puk3p.sentinel.console.log.RuntimeLogBuffer
 import ro.puk3p.sentinel.device.model.DeviceStatus
 import ro.puk3p.sentinel.device.repository.DeviceRepository
 import ro.puk3p.sentinel.forensics.repository.PacketSummaryRepository
@@ -338,6 +341,53 @@ class ConsoleService(
             deviceLng = DEVICE_LNG,
         )
     }
+
+    // ── Topology live feed ─────────────────────────────────────────────────
+    /**
+     * Real topology events synthesised from live domain activity: recent
+     * alerts (anomaly/containment), device registrations and heartbeat status.
+     * Newest first, capped at [limit].
+     */
+    fun topologyEvents(limit: Int): List<TopologyEvent> {
+        val cap = limit.coerceIn(1, 100)
+        val events = mutableListOf<TopologyEvent>()
+
+        alertRepository.findAll(Sort.by(Sort.Direction.DESC, "timestamp")).take(cap).forEach { a ->
+            val src = a.sourceIp.ifBlank { "—" }
+            val node = a.deviceId.ifBlank { "edge" }
+            if (a.contained) {
+                events += TopologyEvent(a.timestamp.toString(), "CONTAINMENT", "${humanize(a.type.name)} contained on $node", "primary")
+            } else {
+                val tone =
+                    when (levelOf(a.severity)) {
+                        "critical" -> "error"
+                        "warning" -> "warning"
+                        else -> "secondary"
+                    }
+                events += TopologyEvent(a.timestamp.toString(), "ANOMALY_DETECTION", "${humanize(a.type.name)} on $node from $src", tone)
+            }
+        }
+
+        deviceRepository.findAll().forEach { d ->
+            val ip = d.ipAddress.ifBlank { "—" }
+            d.createdAt?.let {
+                events += TopologyEvent(it.toString(), "NODE_UP", "${d.deviceId} registered on $ip", "primary")
+            }
+            when (d.status) {
+                DeviceStatus.ONLINE ->
+                    events += TopologyEvent(d.lastSeenAt.toString(), "HEARTBEAT", "${d.deviceId} responding ($ip)", "muted")
+                DeviceStatus.OFFLINE ->
+                    events += TopologyEvent(d.lastSeenAt.toString(), "DEVICE_WARN", "${d.deviceId} ($ip) is offline", "warning")
+                DeviceStatus.UNKNOWN -> Unit
+            }
+        }
+
+        // ISO-8601 instants sort lexicographically, so this is true chronological order.
+        return events.sortedByDescending { it.at }.take(cap)
+    }
+
+    /** The backend service's own most recent runtime log lines (newest first). */
+    fun runtimeLogs(limit: Int): List<RuntimeLogLine> = RuntimeLogBuffer.snapshot(limit)
 
     private fun volume(alerts: List<AlertEntity>): Pair<String, List<VolumeBar>> {
         val buckets = LongArray(24)

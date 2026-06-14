@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Keeps Spring Boot's default console logging (so stdout still flows to
+  systemd/journald on the VPS) and adds an in-memory ring-buffer appender that
+  the topology console reads to show the backend's real runtime logs.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <appender name="RINGBUFFER" class="ro.puk3p.sentinel.console.log.RingBufferAppender"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="RINGBUFFER"/>
+    </root>
+</configuration>
