@@ -14,6 +14,7 @@ object DeviceMapper {
             lastSeenAt = entity.lastSeenAt,
             firmwareVersion = entity.firmwareVersion,
             model = entity.model,
+            quarantinedAt = entity.quarantinedAt,
             createdAt = entity.createdAt!!,
             updatedAt = entity.updatedAt!!,
         )
@@ -24,6 +25,7 @@ object DeviceMapper {
             deviceId = entity.deviceId,
             status = entity.status,
             lastSeenAt = entity.lastSeenAt,
+            quarantinedAt = entity.quarantinedAt,
         )
     }
 }

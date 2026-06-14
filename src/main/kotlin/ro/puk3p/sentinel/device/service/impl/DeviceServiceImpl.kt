@@ -40,7 +40,11 @@ class DeviceServiceImpl(
                 existing.ipAddress = request.ipAddress
                 existing.firmwareVersion = request.firmwareVersion
                 existing.model = request.model
-                existing.status = DeviceStatus.ONLINE
+                // Re-enrolment does not lift containment — a quarantined device
+                // stays isolated until an operator explicitly releases it.
+                if (existing.status != DeviceStatus.QUARANTINED) {
+                    existing.status = DeviceStatus.ONLINE
+                }
                 existing.lastSeenAt = Instant.now()
                 existing
             }
@@ -56,8 +60,39 @@ class DeviceServiceImpl(
             deviceRepository.findByDeviceId(deviceId)
                 .orElseThrow { ResourceNotFoundException("Device not found: $deviceId") }
 
-        entity.status = DeviceStatus.ONLINE
         entity.lastSeenAt = request.seenAt ?: Instant.now()
+        // Containment is sticky: a quarantined device records its heartbeat but
+        // is NOT brought back ONLINE. Only an explicit release lifts isolation.
+        if (entity.status != DeviceStatus.QUARANTINED) {
+            entity.status = DeviceStatus.ONLINE
+        }
+
+        return DeviceMapper.toStatusResponse(deviceRepository.save(entity))
+    }
+
+    override fun quarantine(deviceId: String): DeviceStatusResponse {
+        val entity =
+            deviceRepository.findByDeviceId(deviceId)
+                .orElseThrow { ResourceNotFoundException("Device not found: $deviceId") }
+
+        if (entity.status != DeviceStatus.QUARANTINED) {
+            entity.status = DeviceStatus.QUARANTINED
+            entity.quarantinedAt = Instant.now()
+        }
+
+        return DeviceMapper.toStatusResponse(deviceRepository.save(entity))
+    }
+
+    override fun release(deviceId: String): DeviceStatusResponse {
+        val entity =
+            deviceRepository.findByDeviceId(deviceId)
+                .orElseThrow { ResourceNotFoundException("Device not found: $deviceId") }
+
+        if (entity.status == DeviceStatus.QUARANTINED) {
+            // Drop to OFFLINE; the next heartbeat restores ONLINE normally.
+            entity.status = DeviceStatus.OFFLINE
+            entity.quarantinedAt = null
+        }
 
         return DeviceMapper.toStatusResponse(deviceRepository.save(entity))
     }

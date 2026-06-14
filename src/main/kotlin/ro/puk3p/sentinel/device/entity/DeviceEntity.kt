@@ -20,6 +20,8 @@ class DeviceEntity(
     var lastSeenAt: Instant = Instant.now(),
     var firmwareVersion: String? = null,
     var model: String? = null,
+    /** When the device was put under quarantine; null when not contained. */
+    var quarantinedAt: Instant? = null,
     @CreatedDate
     var createdAt: Instant? = null,
     @LastModifiedDate

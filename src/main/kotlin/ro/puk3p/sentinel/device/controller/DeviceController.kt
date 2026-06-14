@@ -22,6 +22,7 @@ import ro.puk3p.sentinel.device.dto.DeviceHeartbeatRequest
 import ro.puk3p.sentinel.device.dto.DeviceRegisterRequest
 import ro.puk3p.sentinel.device.dto.DeviceResponse
 import ro.puk3p.sentinel.device.dto.DeviceStatusResponse
+import ro.puk3p.sentinel.device.model.DeviceStatus
 import ro.puk3p.sentinel.device.service.DeviceService
 
 @RestController
@@ -31,10 +32,18 @@ class DeviceController(
     private val deviceModelAssembler: DeviceModelAssembler,
 ) {
     private fun toStatusModel(status: DeviceStatusResponse): EntityModel<DeviceStatusResponse> {
+        // State-aware containment affordance: offer the action that applies now.
+        val containment =
+            if (status.status == DeviceStatus.QUARANTINED) {
+                linkTo(methodOn(DeviceController::class.java).release(status.deviceId)).withRel("release")
+            } else {
+                linkTo(methodOn(DeviceController::class.java).quarantine(status.deviceId)).withRel("quarantine")
+            }
         return EntityModel.of(
             status,
             linkTo(methodOn(DeviceController::class.java).getStatus(status.deviceId)).withSelfRel(),
             linkTo(methodOn(DeviceController::class.java).getById(status.deviceId)).withRel("device"),
+            containment,
         )
     }
 
@@ -59,6 +68,28 @@ class DeviceController(
             success = true,
             message = "Heartbeat received",
             data = toStatusModel(deviceService.heartbeat(deviceId, request ?: DeviceHeartbeatRequest())),
+        )
+    }
+
+    @PostMapping("/{deviceId}/quarantine")
+    fun quarantine(
+        @PathVariable deviceId: String,
+    ): ApiResponse<EntityModel<DeviceStatusResponse>> {
+        return ApiResponse(
+            success = true,
+            message = "Device quarantined",
+            data = toStatusModel(deviceService.quarantine(deviceId)),
+        )
+    }
+
+    @PostMapping("/{deviceId}/release")
+    fun release(
+        @PathVariable deviceId: String,
+    ): ApiResponse<EntityModel<DeviceStatusResponse>> {
+        return ApiResponse(
+            success = true,
+            message = "Device released from quarantine",
+            data = toStatusModel(deviceService.release(deviceId)),
         )
     }
 

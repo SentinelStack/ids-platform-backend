@@ -15,6 +15,12 @@ interface DeviceService {
         request: DeviceHeartbeatRequest,
     ): DeviceStatusResponse
 
+    /** Isolate a device: mark it QUARANTINED so heartbeats no longer restore it. */
+    fun quarantine(deviceId: String): DeviceStatusResponse
+
+    /** Lift containment: the device drops to OFFLINE and recovers on next heartbeat. */
+    fun release(deviceId: String): DeviceStatusResponse
+
     fun getAll(pageable: Pageable): Page<DeviceResponse>
 
     fun getByDeviceId(deviceId: String): DeviceResponse

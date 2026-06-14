@@ -7,4 +7,5 @@ data class DeviceStatusResponse(
     val deviceId: String,
     val status: DeviceStatus,
     val lastSeenAt: Instant,
+    val quarantinedAt: Instant? = null,
 )

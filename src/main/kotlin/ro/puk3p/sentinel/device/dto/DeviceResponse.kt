@@ -11,6 +11,7 @@ data class DeviceResponse(
     val lastSeenAt: Instant,
     val firmwareVersion: String?,
     val model: String?,
+    val quarantinedAt: Instant?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )

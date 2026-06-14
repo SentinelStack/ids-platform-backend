@@ -378,6 +378,13 @@ class ConsoleService(
                     events += TopologyEvent(d.lastSeenAt.toString(), "HEARTBEAT", "${d.deviceId} responding ($ip)", "muted")
                 DeviceStatus.OFFLINE ->
                     events += TopologyEvent(d.lastSeenAt.toString(), "DEVICE_WARN", "${d.deviceId} ($ip) is offline", "warning")
+                DeviceStatus.QUARANTINED ->
+                    events += TopologyEvent(
+                        (d.quarantinedAt ?: d.lastSeenAt).toString(),
+                        "QUARANTINE",
+                        "${d.deviceId} ($ip) is isolated — containment active",
+                        "primary",
+                    )
                 DeviceStatus.UNKNOWN -> Unit
             }
         }
