@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.mongodb.repository.MongoRepository
 import ro.puk3p.sentinel.alert.entity.AlertEntity
+import java.time.Instant
 import java.util.Optional
 
 interface AlertRepository : MongoRepository<AlertEntity, String>, AlertRepositoryCustom {
@@ -17,4 +18,8 @@ interface AlertRepository : MongoRepository<AlertEntity, String>, AlertRepositor
     ): Page<AlertEntity>
 
     fun countByAssigneeAndAcknowledgedFalse(assignee: String): Long
+
+    fun countByTimestampGreaterThanEqual(timestamp: Instant): Long
+
+    fun countByContainedTrue(): Long
 }

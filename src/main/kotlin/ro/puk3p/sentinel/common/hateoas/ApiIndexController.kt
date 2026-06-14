@@ -13,6 +13,7 @@ import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.console.ConsoleController
 import ro.puk3p.sentinel.device.controller.DeviceController
 import ro.puk3p.sentinel.forensics.controller.ForensicsController
+import ro.puk3p.sentinel.rule.controller.RuleController
 import ro.puk3p.sentinel.traffic.controller.TrafficStatsController
 
 open class ApiIndexModel : RepresentationModel<ApiIndexModel>()
@@ -44,6 +45,9 @@ class ApiIndexController {
         // Topology live feed: real domain events + the backend's own runtime logs.
         model.add(linkTo(methodOn(ConsoleController::class.java).topologyEvents(40)).withRel("topology-events"))
         model.add(linkTo(methodOn(ConsoleController::class.java).topologyLogs(40)).withRel("topology-logs"))
+        // Edge detection rules + the rules console view.
+        model.add(linkTo(methodOn(RuleController::class.java).list(null, null, null)).withRel("rules"))
+        model.add(linkTo(methodOn(ConsoleController::class.java).rules()).withRel("console-rules"))
 
         // Report-export service (same gateway host, different upstream).
         model.add(Link.of(absolute("/api/reports/meta")).withRel("reports"))

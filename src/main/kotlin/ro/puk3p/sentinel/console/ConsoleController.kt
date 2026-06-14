@@ -15,9 +15,11 @@ import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.console.dto.DashboardView
 import ro.puk3p.sentinel.console.dto.IncidentForensicsView
 import ro.puk3p.sentinel.console.dto.IncidentsView
+import ro.puk3p.sentinel.console.dto.RulesConsoleView
 import ro.puk3p.sentinel.console.dto.RuntimeLogLine
 import ro.puk3p.sentinel.console.dto.TopologyEvent
 import ro.puk3p.sentinel.console.dto.TrafficView
+import ro.puk3p.sentinel.rule.controller.RuleController
 
 @RestController
 @RequestMapping("/api/console")
@@ -78,6 +80,18 @@ class ConsoleController(
                 alertsLink(),
             )
         return ApiResponse(success = true, message = "Dashboard view", data = model)
+    }
+
+    @GetMapping("/rules")
+    fun rules(): ApiResponse<EntityModel<RulesConsoleView>> {
+        val model =
+            EntityModel.of(
+                consoleService.rulesConsole(),
+                linkTo(methodOn(ConsoleController::class.java).rules()).withSelfRel(),
+                linkTo(methodOn(RuleController::class.java).list(null, null, null)).withRel("rules"),
+                linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("dashboard"),
+            )
+        return ApiResponse(success = true, message = "Rules console", data = model)
     }
 
     @GetMapping("/topology/events")

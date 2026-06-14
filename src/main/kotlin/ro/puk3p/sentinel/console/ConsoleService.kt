@@ -23,6 +23,9 @@ import ro.puk3p.sentinel.console.dto.LiveAlert
 import ro.puk3p.sentinel.console.dto.Origin
 import ro.puk3p.sentinel.console.dto.PacketRow
 import ro.puk3p.sentinel.console.dto.ProtocolShare
+import ro.puk3p.sentinel.console.dto.RuleTrigger
+import ro.puk3p.sentinel.console.dto.RulesConsoleView
+import ro.puk3p.sentinel.console.dto.RulesKpis
 import ro.puk3p.sentinel.console.dto.SeverityDistribution
 import ro.puk3p.sentinel.console.dto.ThreatArc
 import ro.puk3p.sentinel.console.dto.TimelineBar
@@ -36,11 +39,13 @@ import ro.puk3p.sentinel.console.log.RuntimeLogBuffer
 import ro.puk3p.sentinel.device.model.DeviceStatus
 import ro.puk3p.sentinel.device.repository.DeviceRepository
 import ro.puk3p.sentinel.forensics.repository.PacketSummaryRepository
+import ro.puk3p.sentinel.rule.service.RuleService
 import ro.puk3p.sentinel.traffic.repository.TrafficStatsRepository
 import ro.puk3p.sentinel.traffic.service.TrafficStatsService
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
 
 @Service
@@ -50,6 +55,7 @@ class ConsoleService(
     private val trafficStatsService: TrafficStatsService,
     private val packetSummaryRepository: PacketSummaryRepository,
     private val deviceRepository: DeviceRepository,
+    private val ruleService: RuleService,
     private val geo: GeoLookup,
 ) {
     // ── Incidents ──────────────────────────────────────────────────────────
@@ -395,6 +401,64 @@ class ConsoleService(
 
     /** The backend service's own most recent runtime log lines (newest first). */
     fun runtimeLogs(limit: Int): List<RuntimeLogLine> = RuntimeLogBuffer.snapshot(limit)
+
+    // ── Rules console ──────────────────────────────────────────────────────
+    /** Real KPI strip + trigger feed for the Rules page (alerts are rule matches). */
+    fun rulesConsole(): RulesConsoleView {
+        val devices = deviceRepository.findAll()
+        val synced = devices.count { it.status == DeviceStatus.ONLINE }
+        val dayAgo = Instant.now().minus(1, ChronoUnit.DAYS)
+
+        val kpis =
+            RulesKpis(
+                activeRouterRules = ruleService.enabledCount(),
+                agentsSynced = "$synced / ${devices.size}",
+                rulesTriggeredToday = alertRepository.countByTimestampGreaterThanEqual(dayAgo),
+                avgEvaluationMs = round1(ruleService.avgEvalMs()),
+                localMitigations = alertRepository.countByContainedTrue(),
+            )
+
+        val triggers =
+            alertRepository.findAll(Sort.by(Sort.Direction.DESC, "timestamp")).take(12).map { a ->
+                val (ruleId, signal, iface) = ruleMatch(a.type.name)
+                RuleTrigger(
+                    at = a.timestamp.toString(),
+                    ruleId = ruleId,
+                    deviceId = a.deviceId.ifBlank { "edge-router" },
+                    interfaceScope = iface,
+                    signal = signal,
+                    value = triggerValue(a.type.name, a.packetCount, a.bytesCount),
+                    tone =
+                        when (levelOf(a.severity)) {
+                            "critical" -> "error"
+                            "warning" -> "warning"
+                            else -> "secondary"
+                        },
+                )
+            }
+
+        return RulesConsoleView(kpis, triggers)
+    }
+
+    /** Map an alert type to the edge rule that produced it. */
+    private fun ruleMatch(type: String): Triple<String, String, String> =
+        when (type) {
+            "UDP_FLOOD_SUSPECTED" -> Triple("EDGE-RULE-DDOS-UDP-001", "packet_rate", "wan")
+            "TCP_SPIKE_SUSPECTED" -> Triple("EDGE-RULE-SYN-FLOOD-001", "syn_ack_ratio", "wan")
+            "PORT_SCAN_SUSPECTED" -> Triple("EDGE-RULE-PORTSCAN-002", "port_distribution", "br-lan")
+            "HIGH_TRAFFIC_VOLUME" -> Triple("EDGE-RULE-OUTBOUND-001", "outbound_ratio", "wan")
+            else -> Triple("EDGE-RULE-GENERIC", "anomaly_score", "wan")
+        }
+
+    private fun triggerValue(
+        type: String,
+        packets: Long,
+        bytes: Long,
+    ): String =
+        when (type) {
+            "HIGH_TRAFFIC_VOLUME" -> formatBytes(bytes)
+            else -> "${formatCount(packets)} pkt/s"
+        }
 
     private fun volume(alerts: List<AlertEntity>): Pair<String, List<VolumeBar>> {
         val buckets = LongArray(24)
