@@ -10,6 +10,10 @@ import java.util.Optional
 interface UserAccountRepository : MongoRepository<UserAccount, String> {
     fun findByUsername(username: String): Optional<UserAccount>
 
+    fun findByEmail(email: String): Optional<UserAccount>
+
+    fun findByGoogleId(googleId: String): Optional<UserAccount>
+
     fun existsByUsername(username: String): Boolean
 }
 

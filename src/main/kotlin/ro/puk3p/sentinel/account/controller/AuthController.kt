@@ -8,8 +8,10 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.account.dto.AccountView
+import ro.puk3p.sentinel.account.dto.GoogleLoginRequest
 import ro.puk3p.sentinel.account.dto.LoginRequest
 import ro.puk3p.sentinel.account.dto.LoginResponse
+import ro.puk3p.sentinel.account.dto.MfaLoginRequest
 import ro.puk3p.sentinel.account.dto.RegisterRequest
 import ro.puk3p.sentinel.account.security.SESSION_JTI_ATTR
 import ro.puk3p.sentinel.account.service.AccountService
@@ -26,6 +28,28 @@ class AuthController(
         http: HttpServletRequest,
     ): ApiResponse<LoginResponse> =
         ApiResponse(success = true, message = "Authenticated", data = accountService.login(request, http))
+
+    @PostMapping("/mfa")
+    fun loginMfa(
+        @Valid @RequestBody request: MfaLoginRequest,
+        http: HttpServletRequest,
+    ): ApiResponse<LoginResponse> =
+        ApiResponse(
+            success = true,
+            message = "Authenticated",
+            data = accountService.loginMfa(request.mfaToken, request.code, http),
+        )
+
+    @PostMapping("/google")
+    fun google(
+        @Valid @RequestBody request: GoogleLoginRequest,
+        http: HttpServletRequest,
+    ): ApiResponse<LoginResponse> =
+        ApiResponse(
+            success = true,
+            message = "Authenticated",
+            data = accountService.googleLogin(request.idToken, http),
+        )
 
     @PostMapping("/register")
     fun register(

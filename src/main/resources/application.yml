@@ -41,3 +41,7 @@ app:
     # Shared key the OpenWrt edge agent presents (X-API-Key header or apiKey
     # query param) to reach the agent-facing endpoints. Override in production.
     api-key: ${AGENT_API_KEY:edge-agent-7f3c1a9e5b2d4f80}
+  google:
+    # OAuth 2.0 Web client id used to verify "Sign in with Google" ID tokens.
+    # Leave blank to disable Google sign-in; set GOOGLE_CLIENT_ID to enable.
+    client-id: ${GOOGLE_CLIENT_ID:}

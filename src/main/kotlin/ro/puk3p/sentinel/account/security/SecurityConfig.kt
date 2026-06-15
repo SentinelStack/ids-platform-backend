@@ -36,7 +36,13 @@ class SecurityConfig(
                 auth
                     // Open: health, auth, and the hypermedia index.
                     .requestMatchers("/actuator/**", "/error").permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/auth/login",
+                        "/api/auth/register",
+                        "/api/auth/mfa",
+                        "/api/auth/google",
+                    ).permitAll()
                     .requestMatchers(HttpMethod.GET, "/api").permitAll()
                     // Edge-agent endpoints — API key (ROLE_AGENT) or a logged-in user.
                     .requestMatchers(

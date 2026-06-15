@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.account.dto.AccountView
 import ro.puk3p.sentinel.account.dto.AuditView
 import ro.puk3p.sentinel.account.dto.ChangePasswordRequest
-import ro.puk3p.sentinel.account.dto.MfaRequest
+import ro.puk3p.sentinel.account.dto.MfaCodeRequest
+import ro.puk3p.sentinel.account.dto.MfaSetupResponse
 import ro.puk3p.sentinel.account.dto.NotificationsRequest
 import ro.puk3p.sentinel.account.dto.PreferencesRequest
 import ro.puk3p.sentinel.account.dto.ProfileUpdateRequest
@@ -75,12 +76,23 @@ class AccountController(
         return ApiResponse(success = true, message = "Password changed", data = Unit)
     }
 
-    @PostMapping("/mfa")
-    fun setMfa(
-        @RequestBody request: MfaRequest,
+    @PostMapping("/mfa/setup")
+    fun mfaSetup(): ApiResponse<MfaSetupResponse> =
+        ApiResponse(success = true, message = "2FA setup", data = accountService.mfaSetup(currentUser()))
+
+    @PostMapping("/mfa/enable")
+    fun mfaEnable(
+        @Valid @RequestBody request: MfaCodeRequest,
         http: HttpServletRequest,
     ): ApiResponse<AccountView> =
-        ApiResponse(success = true, message = "MFA updated", data = accountService.setMfa(currentUser(), request.enabled, http))
+        ApiResponse(success = true, message = "2FA enabled", data = accountService.mfaEnable(currentUser(), request.code, http))
+
+    @PostMapping("/mfa/disable")
+    fun mfaDisable(
+        @Valid @RequestBody request: MfaCodeRequest,
+        http: HttpServletRequest,
+    ): ApiResponse<AccountView> =
+        ApiResponse(success = true, message = "2FA disabled", data = accountService.mfaDisable(currentUser(), request.code, http))
 
     @GetMapping("/sessions")
     fun sessions(http: HttpServletRequest?): ApiResponse<CollectionModel<SessionView>> {

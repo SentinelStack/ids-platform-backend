@@ -12,8 +12,35 @@ data class LoginRequest(
 )
 
 data class LoginResponse(
-    val token: String,
-    val account: AccountView,
+    val token: String? = null,
+    val account: AccountView? = null,
+    // When the account has 2FA enabled, step 1 returns mfaRequired + a short-lived
+    // mfaToken instead of a session token; the client then POSTs /api/auth/mfa.
+    val mfaRequired: Boolean = false,
+    val mfaToken: String? = null,
+)
+
+data class MfaLoginRequest(
+    @field:NotBlank val mfaToken: String = "",
+    @field:NotBlank
+    @field:Pattern(regexp = "^[0-9]{6}\$", message = "Enter the 6-digit code")
+    val code: String = "",
+)
+
+data class GoogleLoginRequest(
+    @field:NotBlank val idToken: String = "",
+)
+
+data class MfaSetupResponse(
+    val secret: String,
+    val otpauthUri: String,
+    val qrDataUri: String,
+)
+
+data class MfaCodeRequest(
+    @field:NotBlank
+    @field:Pattern(regexp = "^[0-9]{6}\$", message = "Enter the 6-digit code")
+    val code: String = "",
 )
 
 data class RegisterRequest(
@@ -90,10 +117,6 @@ data class ChangePasswordRequest(
         message = "Password must be 8–128 characters with at least one letter and one number",
     )
     val newPassword: String = "",
-)
-
-data class MfaRequest(
-    val enabled: Boolean = false,
 )
 
 data class SessionView(

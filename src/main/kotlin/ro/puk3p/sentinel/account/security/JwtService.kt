@@ -36,4 +36,26 @@ class JwtService(
         runCatching {
             Jwts.parser().verifyWith(key).build().parseSignedClaims(token).payload
         }.getOrNull()
+
+    /**
+     * A short-lived token (5 min) that proves step 1 of login (password) passed
+     * and binds the pending second factor to a specific user. Carries
+     * purpose=mfa and no session id, so it can never be used as a session token.
+     */
+    fun issueMfaChallenge(username: String): String {
+        val now = System.currentTimeMillis()
+        return Jwts.builder()
+            .subject(username)
+            .claim("purpose", "mfa")
+            .issuedAt(Date(now))
+            .expiration(Date(now + 5 * 60_000))
+            .signWith(key)
+            .compact()
+    }
+
+    /** Return the username if the token is a valid, unexpired MFA challenge. */
+    fun parseMfaChallenge(token: String): String? {
+        val claims = parse(token) ?: return null
+        return if (claims["purpose"] == "mfa") claims.subject else null
+    }
 }

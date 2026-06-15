@@ -9,6 +9,7 @@ import ro.puk3p.sentinel.account.dto.AuditView
 import ro.puk3p.sentinel.account.dto.ChangePasswordRequest
 import ro.puk3p.sentinel.account.dto.LoginRequest
 import ro.puk3p.sentinel.account.dto.LoginResponse
+import ro.puk3p.sentinel.account.dto.MfaSetupResponse
 import ro.puk3p.sentinel.account.dto.NotificationsRequest
 import ro.puk3p.sentinel.account.dto.PreferencesRequest
 import ro.puk3p.sentinel.account.dto.PreferencesView
@@ -21,7 +22,10 @@ import ro.puk3p.sentinel.account.entity.UserAccount
 import ro.puk3p.sentinel.account.repository.AuditRepository
 import ro.puk3p.sentinel.account.repository.SessionRepository
 import ro.puk3p.sentinel.account.repository.UserAccountRepository
+import ro.puk3p.sentinel.account.security.GoogleAuthService
+import ro.puk3p.sentinel.account.security.GoogleIdentity
 import ro.puk3p.sentinel.account.security.JwtService
+import ro.puk3p.sentinel.account.security.TotpService
 import ro.puk3p.sentinel.common.exception.BadRequestException
 import ro.puk3p.sentinel.common.exception.ResourceNotFoundException
 import ro.puk3p.sentinel.common.exception.UnauthorizedException
@@ -35,6 +39,8 @@ class AccountService(
     private val audit: AuditRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
+    private val totpService: TotpService,
+    private val googleAuthService: GoogleAuthService,
 ) {
     // ── Auth ────────────────────────────────────────────────────────────────
     fun register(request: RegisterRequest): AccountView {
@@ -57,10 +63,67 @@ class AccountService(
         http: HttpServletRequest,
     ): LoginResponse {
         val user = users.findByUsername(request.username).orElse(null)
-        if (user == null || !passwordEncoder.matches(request.password, user.passwordHash)) {
+        if (user == null || user.passwordHash.isBlank() ||
+            !passwordEncoder.matches(request.password, user.passwordHash)
+        ) {
             recordAudit(request.username, "Login attempt", http, "Failed")
             throw UnauthorizedException("Invalid username or password")
         }
+        return issueOrChallenge(user, http)
+    }
+
+    /** Second login step: validate the MFA challenge + TOTP code, then issue a session. */
+    fun loginMfa(
+        mfaToken: String,
+        code: String,
+        http: HttpServletRequest,
+    ): LoginResponse {
+        val username = jwtService.parseMfaChallenge(mfaToken)
+            ?: throw UnauthorizedException("Your verification session expired — sign in again")
+        val user = require(username)
+        val secret = user.mfaSecret
+        if (!user.mfaEnabled || secret.isNullOrBlank() || !totpService.verify(secret, code)) {
+            recordAudit(username, "2FA verification", http, "Failed")
+            throw UnauthorizedException("Invalid verification code")
+        }
+        return LoginResponse(token = startSession(user, http, "Login"), account = toView(user))
+    }
+
+    /** Sign in (or sign up) with a verified Google ID token. */
+    fun googleLogin(
+        idToken: String,
+        http: HttpServletRequest,
+    ): LoginResponse {
+        val id = googleAuthService.verify(idToken)
+        if (!id.emailVerified) {
+            throw UnauthorizedException("Your Google email is not verified")
+        }
+        val user =
+            users.findByGoogleId(id.googleId).orElse(null)
+                ?: users.findByEmail(id.email).orElse(null)?.also { it.googleId = id.googleId }
+                ?: createGoogleAccount(id)
+        users.save(user)
+        return issueOrChallenge(user, http, "Signed in with Google")
+    }
+
+    /** Issue a session token, unless the account requires a second factor. */
+    private fun issueOrChallenge(
+        user: UserAccount,
+        http: HttpServletRequest,
+        action: String = "Login",
+    ): LoginResponse {
+        if (user.mfaEnabled && !user.mfaSecret.isNullOrBlank()) {
+            recordAudit(user.username, "Login (2FA required)", http, "Success")
+            return LoginResponse(mfaRequired = true, mfaToken = jwtService.issueMfaChallenge(user.username))
+        }
+        return LoginResponse(token = startSession(user, http, action), account = toView(user))
+    }
+
+    private fun startSession(
+        user: UserAccount,
+        http: HttpServletRequest,
+        action: String,
+    ): String {
         val jti = UUID.randomUUID().toString()
         sessions.save(
             SessionRecord(
@@ -71,8 +134,29 @@ class AccountService(
                 ip = ipOf(http),
             ),
         )
-        recordAudit(user.username, "Login", http, "Success")
-        return LoginResponse(jwtService.issue(user.username, jti), toView(user))
+        recordAudit(user.username, action, http, "Success")
+        return jwtService.issue(user.username, jti)
+    }
+
+    private fun createGoogleAccount(id: GoogleIdentity): UserAccount =
+        UserAccount(
+            username = uniqueUsername(id.email.substringBefore('@')),
+            email = id.email,
+            fullName = id.name,
+            googleId = id.googleId,
+            passwordChangedAt = null,
+        )
+
+    private fun uniqueUsername(base: String): String {
+        val cleaned = base.lowercase().replace(Regex("[^a-z0-9._-]"), "").ifBlank { "operator" }
+        if (!users.existsByUsername(cleaned)) {
+            return cleaned
+        }
+        var i = 1
+        while (users.existsByUsername("$cleaned$i")) {
+            i++
+        }
+        return "$cleaned$i"
     }
 
     fun logout(
@@ -144,14 +228,60 @@ class AccountService(
         recordAudit(username, "Changed password", http, "Success")
     }
 
-    fun setMfa(
+    /** Begin 2FA enrollment: mint a secret and return the QR/otpauth for the app. */
+    fun mfaSetup(username: String): MfaSetupResponse {
+        val u = require(username)
+        if (u.mfaEnabled) {
+            throw BadRequestException("Two-factor authentication is already enabled")
+        }
+        val secret = totpService.newSecret()
+        u.mfaSecret = secret
+        users.save(u)
+        return MfaSetupResponse(
+            secret = secret,
+            otpauthUri = totpService.otpauthUri(username, secret),
+            qrDataUri = totpService.qrDataUri(username, secret),
+        )
+    }
+
+    /** Confirm enrollment by verifying the first code, then switch 2FA on. */
+    fun mfaEnable(
         username: String,
-        enabled: Boolean,
+        code: String,
         http: HttpServletRequest,
     ): AccountView {
         val u = require(username)
-        u.mfaEnabled = enabled
-        recordAudit(username, if (enabled) "Enabled MFA" else "Disabled MFA", http, "Success")
+        val secret = u.mfaSecret
+        if (secret.isNullOrBlank()) {
+            throw BadRequestException("Start 2FA setup first")
+        }
+        if (!totpService.verify(secret, code)) {
+            recordAudit(username, "Enable 2FA", http, "Failed")
+            throw BadRequestException("That code is incorrect — try again")
+        }
+        u.mfaEnabled = true
+        recordAudit(username, "Enabled 2FA", http, "Success")
+        return toView(users.save(u))
+    }
+
+    /** Turn 2FA off after verifying a current code, and forget the secret. */
+    fun mfaDisable(
+        username: String,
+        code: String,
+        http: HttpServletRequest,
+    ): AccountView {
+        val u = require(username)
+        val secret = u.mfaSecret
+        if (!u.mfaEnabled || secret.isNullOrBlank()) {
+            throw BadRequestException("Two-factor authentication is not enabled")
+        }
+        if (!totpService.verify(secret, code)) {
+            recordAudit(username, "Disable 2FA", http, "Failed")
+            throw BadRequestException("That code is incorrect — try again")
+        }
+        u.mfaEnabled = false
+        u.mfaSecret = null
+        recordAudit(username, "Disabled 2FA", http, "Success")
         return toView(users.save(u))
     }
 

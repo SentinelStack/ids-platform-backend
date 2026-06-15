@@ -21,7 +21,12 @@ class UserAccount(
     var language: String = "English (UK)",
     var timezone: String = "Europe/Bucharest",
     var passwordHash: String = "",
-    var mfaEnabled: Boolean = true,
+    var mfaEnabled: Boolean = false,
+    // Base32 TOTP secret. Set during 2FA setup; null/blank when 2FA is off.
+    var mfaSecret: String? = null,
+    // Google subject id for accounts linked to "Sign in with Google".
+    @Indexed(unique = true, sparse = true)
+    var googleId: String? = null,
     var apiAccessEnabled: Boolean = false,
     var sessionTimeoutMinutes: Int = 30,
     // Preferences.
