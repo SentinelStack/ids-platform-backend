@@ -43,5 +43,5 @@ app:
     api-key: ${AGENT_API_KEY:edge-agent-7f3c1a9e5b2d4f80}
   google:
     # OAuth 2.0 Web client id used to verify "Sign in with Google" ID tokens.
-    # Leave blank to disable Google sign-in; set GOOGLE_CLIENT_ID to enable.
-    client-id: ${GOOGLE_CLIENT_ID:}
+    # Public value (also shipped in the browser); override with GOOGLE_CLIENT_ID.
+    client-id: ${GOOGLE_CLIENT_ID:125528442237-5laqghvs0if2fgim63mmsfjgnnrg1qo7.apps.googleusercontent.com}
