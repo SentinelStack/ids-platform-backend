@@ -217,6 +217,9 @@ class AccountService(
         http: HttpServletRequest,
     ) {
         val u = require(username)
+        if (!u.mfaEnabled) {
+            throw BadRequestException("Enable two-factor authentication before changing your password")
+        }
         if (!passwordEncoder.matches(req.currentPassword, u.passwordHash)) {
             recordAudit(username, "Password change", http, "Failed")
             throw BadRequestException("Current password is incorrect")
