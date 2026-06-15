@@ -15,8 +15,12 @@ import ro.puk3p.sentinel.console.dto.DistBar
 import ro.puk3p.sentinel.console.dto.FlowPoint
 import ro.puk3p.sentinel.console.dto.ForensicPacket
 import ro.puk3p.sentinel.console.dto.ForensicStat
+import ro.puk3p.sentinel.console.dto.LogEntry
+import ro.puk3p.sentinel.console.dto.LogKpis
+import ro.puk3p.sentinel.console.dto.LogStreamView
 import ro.puk3p.sentinel.console.dto.NodeDetailView
 import ro.puk3p.sentinel.console.dto.NodeDetection
+import ro.puk3p.sentinel.console.dto.PipelineComponent
 import ro.puk3p.sentinel.console.dto.IncidentForensicsView
 import ro.puk3p.sentinel.console.dto.IncidentKpis
 import ro.puk3p.sentinel.console.dto.IncidentRow
@@ -403,6 +407,108 @@ class ConsoleService(
 
     /** The backend service's own most recent runtime log lines (newest first). */
     fun runtimeLogs(limit: Int): List<RuntimeLogLine> = RuntimeLogBuffer.snapshot(limit)
+
+    // ── Unified log/event stream (real sources) ─────────────────────────────
+    /**
+     * Merges real sources into one stream: the backend's own runtime logs,
+     * recent alerts (edge detections) and device lifecycle events.
+     */
+    fun logStream(limit: Int): LogStreamView {
+        val cap = limit.coerceIn(1, 200)
+        val dayAgo = Instant.now().minus(1, ChronoUnit.DAYS)
+        val entries = mutableListOf<Pair<Instant, LogEntry>>()
+
+        // 1) Real alerts -> detection events from the edge.
+        val alerts = alertRepository.findAll(Sort.by(Sort.Direction.DESC, "timestamp")).take(cap)
+        alerts.forEach { a ->
+            val sev =
+                when (levelOf(a.severity)) {
+                    "critical" -> "CRITICAL"
+                    "warning" -> "WARNING"
+                    else -> "INFO"
+                }
+            val tone = if (sev == "CRITICAL") "error" else if (sev == "WARNING") "warning" else "secondary"
+            entries +=
+                a.timestamp to
+                    LogEntry(
+                        at = a.timestamp.toString(),
+                        severity = sev,
+                        source = if (a.contained) "Alert Service" else "Router Rules",
+                        icon = if (a.contained) "security" else "router",
+                        device = a.deviceId.ifBlank { "edge" },
+                        eventType = if (a.contained) "INCIDENT_CONTAINED" else a.type.name,
+                        message = a.description ?: humanize(a.type.name),
+                        traceId = "trace-" + a.alertId.filter { it.isLetterOrDigit() }.takeLast(6).lowercase(),
+                        tone = tone,
+                    )
+        }
+
+        // 2) The backend service's own runtime logs.
+        RuntimeLogBuffer.snapshot(cap).forEach { l ->
+            val ts = runCatching { Instant.parse(l.at) }.getOrDefault(Instant.now())
+            val sev = when (l.level.uppercase()) { "ERROR" -> "CRITICAL"; "WARN" -> "WARNING"; else -> "INFO" }
+            entries +=
+                ts to
+                    LogEntry(
+                        at = l.at,
+                        severity = sev,
+                        source = "Backend Ingestion",
+                        icon = "dns",
+                        device = "ids-platform-backend",
+                        eventType = "SERVICE_LOG",
+                        message = "${l.logger}: ${l.message}",
+                        traceId = "—",
+                        tone = if (sev == "CRITICAL") "error" else if (sev == "WARNING") "warning" else "primary",
+                    )
+        }
+
+        // 3) Device lifecycle.
+        deviceRepository.findAll().forEach { d ->
+            d.createdAt?.let {
+                entries +=
+                    it to
+                        LogEntry(
+                            it.toString(), "INFO", "Device Registry", "lan",
+                            d.deviceId, "DEVICE_REGISTERED",
+                            "${d.deviceId} registered (${d.ipAddress.ifBlank { "—" }})", "—", "primary",
+                        )
+            }
+        }
+
+        val merged = entries.sortedByDescending { it.first }.map { it.second }.take(cap)
+
+        val kpis =
+            LogKpis(
+                logsIngested24h = alertRepository.countByTimestampGreaterThanEqual(dayAgo),
+                edgeLogs = alertRepository.countByTimestampGreaterThanEqualAndDeviceIdNot(dayAgo, ""),
+                criticalEvents =
+                    alertRepository.countByTimestampGreaterThanEqualAndSeverityIn(dayAgo, listOf(Severity.CRITICAL, Severity.HIGH)),
+                warningEvents =
+                    alertRepository.countByTimestampGreaterThanEqualAndSeverityIn(dayAgo, listOf(Severity.MEDIUM)),
+                ingestionDelayMs = avgIngestionDelayMs(alerts),
+            )
+
+        val devices = deviceRepository.findAll()
+        val anyOnline = devices.any { it.status == DeviceStatus.ONLINE }
+        val pipeline =
+            listOf(
+                PipelineComponent("OpenWrt Agent", if (anyOnline) "Healthy" else "Degraded"),
+                PipelineComponent("Router Rules", "Healthy"),
+                PipelineComponent("Backend Ingestion", "Healthy"),
+                PipelineComponent("Alert Service", "Healthy"),
+            )
+
+        return LogStreamView(kpis, merged, pipeline)
+    }
+
+    /** Mean store-time delay (createdAt - timestamp) over recent alerts, in ms. */
+    private fun avgIngestionDelayMs(alerts: List<AlertEntity>): Long {
+        val deltas =
+            alerts.mapNotNull { a ->
+                a.createdAt?.let { (it.toEpochMilli() - a.timestamp.toEpochMilli()).coerceAtLeast(0) }
+            }
+        return if (deltas.isEmpty()) 0 else deltas.average().toLong()
+    }
 
     // ── Topology node detail (real device data) ─────────────────────────────
     /** Live inspector data for a device-backed topology node. */

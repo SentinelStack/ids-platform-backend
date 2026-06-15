@@ -50,6 +50,8 @@ class ApiIndexController {
         // Edge detection rules + the rules console view.
         model.add(linkTo(methodOn(RuleController::class.java).list(null, null, null)).withRel("rules"))
         model.add(linkTo(methodOn(ConsoleController::class.java).rules()).withRel("console-rules"))
+        // Unified log/event stream for the Log Viewer.
+        model.add(linkTo(methodOn(ConsoleController::class.java).logs(80)).withRel("console-logs"))
 
         // Report-export service (same gateway host, different upstream).
         model.add(Link.of(absolute("/api/reports/meta")).withRel("reports"))

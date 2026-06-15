@@ -16,6 +16,7 @@ import ro.puk3p.sentinel.device.controller.DeviceController
 import ro.puk3p.sentinel.console.dto.DashboardView
 import ro.puk3p.sentinel.console.dto.IncidentForensicsView
 import ro.puk3p.sentinel.console.dto.IncidentsView
+import ro.puk3p.sentinel.console.dto.LogStreamView
 import ro.puk3p.sentinel.console.dto.NodeDetailView
 import ro.puk3p.sentinel.console.dto.RulesConsoleView
 import ro.puk3p.sentinel.console.dto.RuntimeLogLine
@@ -94,6 +95,19 @@ class ConsoleController(
                 linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("dashboard"),
             )
         return ApiResponse(success = true, message = "Rules console", data = model)
+    }
+
+    @GetMapping("/logs")
+    fun logs(
+        @RequestParam(defaultValue = "80") limit: Int,
+    ): ApiResponse<EntityModel<LogStreamView>> {
+        val model =
+            EntityModel.of(
+                consoleService.logStream(limit),
+                linkTo(methodOn(ConsoleController::class.java).logs(limit)).withSelfRel(),
+                linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("dashboard"),
+            )
+        return ApiResponse(success = true, message = "Log stream", data = model)
     }
 
     @GetMapping("/topology/node/{deviceId}")

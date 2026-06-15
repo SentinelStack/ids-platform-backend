@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.mongodb.repository.MongoRepository
 import ro.puk3p.sentinel.alert.entity.AlertEntity
+import ro.puk3p.sentinel.alert.model.Severity
 import java.time.Instant
 import java.util.Optional
 
@@ -22,4 +23,14 @@ interface AlertRepository : MongoRepository<AlertEntity, String>, AlertRepositor
     fun countByTimestampGreaterThanEqual(timestamp: Instant): Long
 
     fun countByContainedTrue(): Long
+
+    fun countByTimestampGreaterThanEqualAndSeverityIn(
+        timestamp: Instant,
+        severities: Collection<Severity>,
+    ): Long
+
+    fun countByTimestampGreaterThanEqualAndDeviceIdNot(
+        timestamp: Instant,
+        deviceId: String,
+    ): Long
 }
