@@ -44,6 +44,21 @@ class GlobalExceptionHandler {
         )
     }
 
+    @ExceptionHandler(UnauthorizedException::class)
+    fun handleUnauthorized(
+        ex: UnauthorizedException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+            ErrorResponse(
+                status = HttpStatus.UNAUTHORIZED.value(),
+                error = HttpStatus.UNAUTHORIZED.reasonPhrase,
+                message = ex.message ?: "Unauthorized",
+                path = request.requestURI,
+            ),
+        )
+    }
+
     @ExceptionHandler(BadRequestException::class)
     fun handleBadRequest(
         ex: BadRequestException,

@@ -40,6 +40,12 @@
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
 
+    <!-- Account entity/DTOs carry Kotlin Map fields (preferences/notifications). -->
+    <Match>
+        <Class name="~ro\.puk3p\.sentinel\.account\..*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
     <!-- The analyst roster is an immutable Kotlin list. -->
     <Match>
         <Class name="ro.puk3p.sentinel.alert.service.impl.AlertServiceImpl"/>

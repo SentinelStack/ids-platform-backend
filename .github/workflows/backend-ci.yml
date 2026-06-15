@@ -76,17 +76,26 @@ jobs:
           echo "GET /api -> $code"
           test "$code" = "200"
 
-      - name: Verify QA alerts endpoint serves data
+      - name: Verify protected endpoints reject unauthenticated calls
         run: |
-          body=$(curl -fsS "https://qa-api.puk3p.online/api/alerts?size=1")
-          echo "$body" | head -c 300
-          echo "$body" | grep -q '"success":true'
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://qa-api.puk3p.online/api/alerts?size=1")
+          echo "GET /api/alerts (no token) -> $code"
+          test "$code" = "401" || test "$code" = "403"
 
-      - name: Verify unknown routes return 404 (not 500)
+      - name: Authenticate and verify alerts endpoint serves data
+        env:
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' https://qa-api.puk3p.online/api/does-not-exist)
-          echo "GET /api/does-not-exist -> $code"
-          test "$code" = "404"
+          token=$(curl -fsS -X POST "https://qa-api.puk3p.online/api/auth/login" \
+            -H 'Content-Type: application/json' \
+            -d "{\"username\":\"${SMOKE_USERNAME}\",\"password\":\"${SMOKE_PASSWORD}\"}" \
+            | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+          test -n "$token"
+          echo "obtained JWT (len=${#token})"
+          body=$(curl -fsS "https://qa-api.puk3p.online/api/alerts?size=1" -H "Authorization: Bearer $token")
+          echo "$body" | head -c 200
+          echo "$body" | grep -q '"success":true'
 
   cats-report:
     name: Manual Run CATS Against QA
