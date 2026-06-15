@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.alert.controller.AlertController
 import ro.puk3p.sentinel.common.response.ApiResponse
+import ro.puk3p.sentinel.device.controller.DeviceController
 import ro.puk3p.sentinel.console.dto.DashboardView
 import ro.puk3p.sentinel.console.dto.IncidentForensicsView
 import ro.puk3p.sentinel.console.dto.IncidentsView
+import ro.puk3p.sentinel.console.dto.NodeDetailView
 import ro.puk3p.sentinel.console.dto.RulesConsoleView
 import ro.puk3p.sentinel.console.dto.RuntimeLogLine
 import ro.puk3p.sentinel.console.dto.TopologyEvent
@@ -92,6 +94,19 @@ class ConsoleController(
                 linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("dashboard"),
             )
         return ApiResponse(success = true, message = "Rules console", data = model)
+    }
+
+    @GetMapping("/topology/node/{deviceId}")
+    fun topologyNode(
+        @PathVariable deviceId: String,
+    ): ApiResponse<EntityModel<NodeDetailView>> {
+        val model =
+            EntityModel.of(
+                consoleService.nodeDetail(deviceId),
+                linkTo(methodOn(ConsoleController::class.java).topologyNode(deviceId)).withSelfRel(),
+                linkTo(methodOn(DeviceController::class.java).getById(deviceId)).withRel("device"),
+            )
+        return ApiResponse(success = true, message = "Topology node detail", data = model)
     }
 
     @GetMapping("/topology/events")

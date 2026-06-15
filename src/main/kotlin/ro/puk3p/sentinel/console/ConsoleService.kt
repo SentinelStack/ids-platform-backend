@@ -15,6 +15,8 @@ import ro.puk3p.sentinel.console.dto.DistBar
 import ro.puk3p.sentinel.console.dto.FlowPoint
 import ro.puk3p.sentinel.console.dto.ForensicPacket
 import ro.puk3p.sentinel.console.dto.ForensicStat
+import ro.puk3p.sentinel.console.dto.NodeDetailView
+import ro.puk3p.sentinel.console.dto.NodeDetection
 import ro.puk3p.sentinel.console.dto.IncidentForensicsView
 import ro.puk3p.sentinel.console.dto.IncidentKpis
 import ro.puk3p.sentinel.console.dto.IncidentRow
@@ -401,6 +403,81 @@ class ConsoleService(
 
     /** The backend service's own most recent runtime log lines (newest first). */
     fun runtimeLogs(limit: Int): List<RuntimeLogLine> = RuntimeLogBuffer.snapshot(limit)
+
+    // ── Topology node detail (real device data) ─────────────────────────────
+    /** Live inspector data for a device-backed topology node. */
+    fun nodeDetail(deviceId: String): NodeDetailView {
+        val device =
+            deviceRepository.findByDeviceId(deviceId)
+                .orElseThrow { ResourceNotFoundException("Device not found: $deviceId") }
+
+        val (status, statusTone) =
+            when (device.status) {
+                DeviceStatus.ONLINE -> "Online" to "ok"
+                DeviceStatus.QUARANTINED -> "Quarantined" to "warn"
+                DeviceStatus.OFFLINE -> "Offline" to "warn"
+                else -> "Unknown" to "warn"
+            }
+
+        val load =
+            if (device.cpuPercent != null && device.memPercent != null) {
+                "${device.cpuPercent}% CPU / ${device.memPercent}% RAM"
+            } else {
+                "— not reported"
+            }
+
+        // Activity from the latest traffic window the router sent.
+        val latest =
+            trafficStatsRepository.findByDeviceIdOrderByTimestampDesc(deviceId, PageRequest.of(0, 1))
+                .content.firstOrNull()
+        val activity =
+            if (latest != null && latest.windowSeconds > 0) {
+                val pps = latest.totalPackets / latest.windowSeconds
+                val kbps = latest.totalBytes.toDouble() / latest.windowSeconds / 1000.0
+                "${formatCount(pps)} pkt/s | ${round1(kbps)} KB/s"
+            } else {
+                "no traffic yet"
+            }
+
+        // Risk + detections from recent alerts (last hour).
+        val hourAgo = Instant.now().minus(1, ChronoUnit.HOURS)
+        val recent =
+            alertRepository.findByDeviceIdOrderByTimestampDesc(deviceId, PageRequest.of(0, 50))
+                .content.filter { it.timestamp.isAfter(hourAgo) }
+
+        val (risk, riskTone) =
+            when {
+                device.status == DeviceStatus.QUARANTINED -> "Contained" to "ok"
+                recent.any { it.severity == Severity.CRITICAL || it.severity == Severity.HIGH } -> "High" to "error"
+                recent.any { it.severity == Severity.MEDIUM } -> "Medium" to "warn"
+                recent.isNotEmpty() -> "Low" to "ok"
+                else -> "Nominal" to "ok"
+            }
+
+        // Distinct recent detection types, newest first, up to 4.
+        val detections =
+            recent.distinctBy { it.type }
+                .take(4)
+                .map {
+                    NodeDetection(
+                        humanize(it.type.name),
+                        if (it.severity == Severity.CRITICAL || it.severity == Severity.HIGH) "critical" else "warning",
+                    )
+                }
+
+        return NodeDetailView(
+            deviceId = device.deviceId,
+            name = device.name.ifBlank { device.deviceId },
+            ip = device.ipAddress.ifBlank { "—" },
+            status = status,
+            statusTone = statusTone,
+            load = load,
+            risk = risk,
+            riskTone = riskTone,
+            activity = activity,
+            detections = detections,
+        )
+    }
 
     // ── Rules console ──────────────────────────────────────────────────────
     /** Real KPI strip + trigger feed for the Rules page (alerts are rule matches). */

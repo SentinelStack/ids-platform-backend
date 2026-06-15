@@ -22,6 +22,9 @@ class DeviceEntity(
     var model: String? = null,
     /** When the device was put under quarantine; null when not contained. */
     var quarantinedAt: Instant? = null,
+    /** Last reported router resource usage (0–100), from the agent heartbeat. */
+    var cpuPercent: Int? = null,
+    var memPercent: Int? = null,
     @CreatedDate
     var createdAt: Instant? = null,
     @LastModifiedDate

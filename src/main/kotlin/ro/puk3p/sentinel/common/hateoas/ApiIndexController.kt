@@ -45,6 +45,8 @@ class ApiIndexController {
         // Topology live feed: real domain events + the backend's own runtime logs.
         model.add(linkTo(methodOn(ConsoleController::class.java).topologyEvents(40)).withRel("topology-events"))
         model.add(linkTo(methodOn(ConsoleController::class.java).topologyLogs(40)).withRel("topology-logs"))
+        // Templated: live detail for a device-backed topology node.
+        model.add(Link.of(nodeDetailTemplate()).withRel("topology-node"))
         // Edge detection rules + the rules console view.
         model.add(linkTo(methodOn(RuleController::class.java).list(null, null, null)).withRel("rules"))
         model.add(linkTo(methodOn(ConsoleController::class.java).rules()).withRel("console-rules"))
@@ -61,4 +63,10 @@ class ApiIndexController {
     /** Absolute URL on the public host (honours nginx X-Forwarded-*). */
     private fun absolute(path: String): String =
         ServletUriComponentsBuilder.fromCurrentContextPath().path(path).build().toUriString()
+
+    /** RFC 6570 templated link: …/api/console/topology/node/{deviceId}. */
+    private fun nodeDetailTemplate(): String {
+        val base = linkTo(methodOn(ConsoleController::class.java).topologyNode("X")).toUri().toString()
+        return base.removeSuffix("X") + "{deviceId}"
+    }
 }

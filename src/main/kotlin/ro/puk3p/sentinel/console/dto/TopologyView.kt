@@ -31,3 +31,22 @@ data class RuntimeLogLine(
     val logger: String,
     val message: String,
 )
+
+/** Live detail for a topology node, computed from real device + traffic + alerts. */
+data class NodeDetailView(
+    val deviceId: String,
+    val name: String,
+    val ip: String,
+    val status: String,
+    val statusTone: String,
+    val load: String,
+    val risk: String,
+    val riskTone: String,
+    val activity: String,
+    val detections: List<NodeDetection>,
+)
+
+data class NodeDetection(
+    val label: String,
+    val level: String,
+)

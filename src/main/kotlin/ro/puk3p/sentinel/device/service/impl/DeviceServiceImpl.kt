@@ -61,6 +61,8 @@ class DeviceServiceImpl(
                 .orElseThrow { ResourceNotFoundException("Device not found: $deviceId") }
 
         entity.lastSeenAt = request.seenAt ?: Instant.now()
+        request.cpuPercent?.let { entity.cpuPercent = it.coerceIn(0, 100) }
+        request.memPercent?.let { entity.memPercent = it.coerceIn(0, 100) }
         // Containment is sticky: a quarantined device records its heartbeat but
         // is NOT brought back ONLINE. Only an explicit release lifts isolation.
         if (entity.status != DeviceStatus.QUARANTINED) {
