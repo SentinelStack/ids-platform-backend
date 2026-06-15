@@ -49,14 +49,14 @@ class AccountController(
 
     @PutMapping("/profile")
     fun updateProfile(
-        @RequestBody request: ProfileUpdateRequest,
+        @Valid @RequestBody request: ProfileUpdateRequest,
         http: HttpServletRequest,
     ): ApiResponse<AccountView> =
         ApiResponse(success = true, message = "Profile updated", data = accountService.updateProfile(currentUser(), request, http))
 
     @PutMapping("/preferences")
     fun updatePreferences(
-        @RequestBody request: PreferencesRequest,
+        @Valid @RequestBody request: PreferencesRequest,
     ): ApiResponse<AccountView> =
         ApiResponse(success = true, message = "Preferences updated", data = accountService.updatePreferences(currentUser(), request))
 
