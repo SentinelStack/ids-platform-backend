@@ -194,6 +194,9 @@ jobs:
           REPORT_DIR=$(find cats-report -type f -name "index.html" -exec dirname {} \; | head -n 1)
           test -n "$REPORT_DIR" || (echo "No CATS report directory found" && exit 1)
           cp -r "$REPORT_DIR"/* pages/
+          # Keep the custom domain across deploys and serve assets verbatim.
+          echo 'cats.puk3p.online' > pages/CNAME
+          touch pages/.nojekyll
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
