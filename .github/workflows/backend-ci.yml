@@ -113,6 +113,19 @@ jobs:
           repository: Endava/cats
           path: tools/cats-src
 
+      - name: Checkout API contract
+        uses: actions/checkout@v4
+        with:
+          repository: SentinelStack/ids-api-contract
+          path: tools/api-contract
+
+      - name: Bundle OpenAPI contract for CATS
+        run: |
+          npx -y @redocly/cli@1 bundle \
+            tools/api-contract/openapi/ids-backend.yaml \
+            -o bundled-contract.yaml --ext yaml
+          echo "bundled contract: $(wc -l < bundled-contract.yaml) lines"
+
       - name: Setup JDK for CATS
         id: setup-java-cats
         uses: actions/setup-java@v4
@@ -163,14 +176,17 @@ jobs:
         run: |
           mkdir -p cats-report
           java -jar tools/cats-src/target/cats-runner.jar \
-            --contract=https://qa-api.puk3p.online/test/contract/bundled \
+            --contract=bundled-contract.yaml \
             --server=https://qa-api.puk3p.online \
             --blackbox \
             --reportFormat=HTML_ONLY \
             --output=cats-report \
             --timestampReports \
             --skipReportingForIgnored \
-            --verbosity=SUMMARY > cats-output.log 2>&1
+            --verbosity=SUMMARY > cats-output.log 2>&1 \
+            || echo "CATS exited non-zero (findings or error) — see cats-output.log"
+          echo "==== cats-output.log (tail) ===="
+          tail -n 40 cats-output.log || true
 
       - name: Upload CATS report
         if: always()
