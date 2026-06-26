@@ -9,8 +9,13 @@ import ro.puk3p.sentinel.alert.model.Severity
 import ro.puk3p.sentinel.alert.repository.AlertRepository
 import ro.puk3p.sentinel.common.exception.ResourceNotFoundException
 import ro.puk3p.sentinel.console.dto.AffectedAsset
+import ro.puk3p.sentinel.console.dto.CategoryCount
+import ro.puk3p.sentinel.console.dto.ClientDomains
 import ro.puk3p.sentinel.console.dto.DashboardKpis
 import ro.puk3p.sentinel.console.dto.DashboardView
+import ro.puk3p.sentinel.console.dto.DestinationRow
+import ro.puk3p.sentinel.console.dto.DestinationsView
+import ro.puk3p.sentinel.console.dto.DomainHit
 import ro.puk3p.sentinel.console.dto.DistBar
 import ro.puk3p.sentinel.console.dto.FlowPoint
 import ro.puk3p.sentinel.console.dto.ForensicPacket
@@ -33,8 +38,10 @@ import ro.puk3p.sentinel.console.dto.RuleTrigger
 import ro.puk3p.sentinel.console.dto.RulesConsoleView
 import ro.puk3p.sentinel.console.dto.RulesKpis
 import ro.puk3p.sentinel.console.dto.SeverityDistribution
+import ro.puk3p.sentinel.console.dto.Summary
 import ro.puk3p.sentinel.console.dto.ThreatArc
 import ro.puk3p.sentinel.console.dto.TimelineBar
+import ro.puk3p.sentinel.console.dto.TopDomain
 import ro.puk3p.sentinel.console.dto.TopPort
 import ro.puk3p.sentinel.console.dto.TopSource
 import ro.puk3p.sentinel.console.dto.TopologyEvent
@@ -44,6 +51,7 @@ import ro.puk3p.sentinel.console.dto.VolumeBar
 import ro.puk3p.sentinel.console.log.RuntimeLogBuffer
 import ro.puk3p.sentinel.device.model.DeviceStatus
 import ro.puk3p.sentinel.device.repository.DeviceRepository
+import ro.puk3p.sentinel.dns.repository.DnsQueryRepository
 import ro.puk3p.sentinel.forensics.repository.PacketSummaryRepository
 import ro.puk3p.sentinel.rule.service.RuleService
 import ro.puk3p.sentinel.traffic.repository.TrafficStatsRepository
@@ -60,6 +68,7 @@ class ConsoleService(
     private val trafficStatsRepository: TrafficStatsRepository,
     private val trafficStatsService: TrafficStatsService,
     private val packetSummaryRepository: PacketSummaryRepository,
+    private val dnsQueryRepository: DnsQueryRepository,
     private val deviceRepository: DeviceRepository,
     private val ruleService: RuleService,
     private val geo: GeoLookup,
@@ -319,6 +328,105 @@ class ConsoleService(
                 },
             distribution = distribution(series.map { it.totalPackets }),
         )
+    }
+
+    // ── Destinations (DNS) ──────────────────────────────────────────────────
+    /**
+     * Per-client outbound destination feed built from the edge agent's DNS
+     * query windows: the most recent lookups, the busiest domains overall and a
+     * per-client breakdown of where each host is reaching out to.
+     */
+    fun destinations(): DestinationsView {
+        val rows = dnsQueryRepository.findAllByOrderByTimestampDesc(PageRequest.of(0, 300)).content
+        val named = rows.filter { it.domain.isNotBlank() }
+
+        val summary =
+            Summary(
+                totalQueries = rows.sumOf { it.count },
+                uniqueDomains = named.map { it.domain }.toSet().size,
+                activeClients = rows.mapNotNull { it.clientIp.ifBlank { null } }.toSet().size,
+                trackerQueries = named.filter { classify(it.domain).second }.sumOf { it.count },
+            )
+
+        val categories =
+            named.groupingBy { classify(it.domain).first }
+                .fold(0) { acc, row -> acc + row.count }
+                .entries
+                .sortedByDescending { it.value }
+                .map { CategoryCount(it.key, it.value) }
+
+        val topDomains =
+            named.groupingBy { it.domain }
+                .fold(0) { acc, row -> acc + row.count }
+                .entries
+                .sortedByDescending { it.value }
+                .take(15)
+                .map { (domain, count) ->
+                    val (category, tracker) = classify(domain)
+                    TopDomain(domain, count, category, tracker)
+                }
+
+        val byClient =
+            rows.filter { it.clientIp.isNotBlank() }
+                .groupBy { it.clientIp }
+                .map { (clientIp, clientRows) ->
+                    val domains =
+                        clientRows.filter { it.domain.isNotBlank() }
+                            .groupingBy { it.domain }
+                            .fold(0) { acc, row -> acc + row.count }
+                            .entries
+                            .sortedByDescending { it.value }
+                            .take(8)
+                            .map { (domain, count) ->
+                                val (category, tracker) = classify(domain)
+                                DomainHit(domain, count, category, tracker)
+                            }
+                    val queryCount = clientRows.sumOf { it.count }
+                    ClientDomains(
+                        clientIp = clientIp,
+                        queryCount = queryCount,
+                        topDomain = domains.firstOrNull()?.domain ?: "—",
+                        domains = domains,
+                    )
+                }
+                .sortedByDescending { it.queryCount }
+                .take(12)
+
+        val recent =
+            rows.take(50).map {
+                val (category, tracker) = classify(it.domain)
+                DestinationRow(
+                    timestamp = it.timestamp.toString(),
+                    clientIp = it.clientIp.ifBlank { "—" },
+                    domain = it.domain.ifBlank { "—" },
+                    count = it.count,
+                    category = category,
+                    tracker = tracker,
+                )
+            }
+
+        return DestinationsView(
+            summary = summary,
+            categories = categories,
+            topDomains = topDomains,
+            byClient = byClient,
+            recent = recent,
+        )
+    }
+
+    /**
+     * Server-side domain classification: case-insensitive substring match. Tracker
+     * patterns are checked first (they win and pin category to "Ads & Trackers");
+     * otherwise the first matching category in declaration order applies, defaulting
+     * to "Other". Returns (category, tracker).
+     */
+    private fun classify(domain: String): Pair<String, Boolean> {
+        val d = domain.lowercase()
+        if (TRACKER_PATTERNS.any { it in d }) return "Ads & Trackers" to true
+        for ((category, patterns) in CATEGORY_PATTERNS) {
+            if (patterns.any { it in d }) return category to false
+        }
+        return "Other" to false
     }
 
     // ── Dashboard ──────────────────────────────────────────────────────────
@@ -784,6 +892,46 @@ class ConsoleService(
         private const val DEVICE_LAT = 44.4268
         private const val DEVICE_LNG = 26.1025
         private val PRIVATE_RANGE = Regex("^(10\\.|127\\.|169\\.254\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)")
+
+        // ── DNS destination classification (case-insensitive substring match) ──
+        // Trackers win over everything; checked before any category.
+        private val TRACKER_PATTERNS =
+            listOf(
+                "doubleclick", "google-analytics", "googletagmanager", "googlesyndication",
+                "googleadservices", "adservice", "scorecardresearch", "trafficjunky", "adnxs",
+                "adsystem", "app-measurement", "app-analytics", "firebaselogging", "crashlytics",
+                "appsflyer", "adjust.com", "segment.io", "mixpanel", "amplitude", "criteo",
+                "taboola", "outbrain", "moatads", "adtng",
+            )
+
+        // Ordered: first matching category wins (tracker=false).
+        private val CATEGORY_PATTERNS =
+            listOf(
+                "Social" to
+                    listOf(
+                        "facebook", "fbcdn", "instagram", "cdninstagram", "snapchat", "sc-cdn",
+                        "sc-gw", "tiktok", "twitter", "twimg", "whatsapp", "telegram", "reddit",
+                        "redd.it", "linkedin", "pinterest", "discord",
+                    ),
+                "Video" to
+                    listOf(
+                        "youtube", "ytimg", "googlevideo", "netflix", "nflx", "twitch", "ttvnw",
+                        "vimeo", "pornhub", "phncdn", "xvideos",
+                    ),
+                "Search" to listOf("www.google", "google.com/search", "bing.", "duckduckgo", "yandex", "baidu"),
+                "Apple" to listOf("apple.com", "icloud", "aaplimg", "apple-dns", "mzstatic", "cdn-apple"),
+                "Google" to
+                    listOf(
+                        "gstatic", "googleapis", "ggpht", "googleusercontent", "gvt1", "gvt2",
+                        "withgoogle", "google.com",
+                    ),
+                "Shopping" to listOf("amazon.", "ebay", "aliexpress", "emag", "shopify"),
+                "CDN" to
+                    listOf(
+                        "akamai", "cloudflare", "cloudfront", "fastly", "amazonaws", "azureedge",
+                        "edgekey", "jsdelivr", "unpkg",
+                    ),
+            )
         private val RISKY_PORTS = setOf(22, 23, 3389, 445, 1433, 3306)
         private val PORT_NAMES =
             mapOf(443 to "HTTPS", 80 to "HTTP", 53 to "DNS", 22 to "SSH", 23 to "Telnet", 3389 to "RDP", 8080 to "HTTP-ALT")

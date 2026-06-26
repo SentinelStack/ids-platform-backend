@@ -12,6 +12,7 @@ import ro.puk3p.sentinel.alert.controller.AlertController
 import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.console.ConsoleController
 import ro.puk3p.sentinel.device.controller.DeviceController
+import ro.puk3p.sentinel.dns.controller.DnsController
 import ro.puk3p.sentinel.forensics.controller.ForensicsController
 import ro.puk3p.sentinel.rule.controller.RuleController
 import ro.puk3p.sentinel.traffic.controller.TrafficStatsController
@@ -37,10 +38,12 @@ class ApiIndexController {
         model.add(linkTo(methodOn(TrafficStatsController::class.java).summary()).withRel("traffic-summary"))
         model.add(linkTo(methodOn(ForensicsController::class.java).getPackets(0, 20)).withRel("forensics"))
         model.add(linkTo(methodOn(ForensicsController::class.java).timeline(null, null, 0, 20)).withRel("forensics-timeline"))
+        model.add(linkTo(methodOn(DnsController::class.java).recent(0, 20)).withRel("dns-queries"))
 
         // Dashboard console views.
         model.add(linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("console-dashboard"))
         model.add(linkTo(methodOn(ConsoleController::class.java).traffic()).withRel("console-traffic"))
+        model.add(linkTo(methodOn(ConsoleController::class.java).destinations()).withRel("console-destinations"))
         model.add(linkTo(methodOn(ConsoleController::class.java).incidents()).withRel("console-incidents"))
         // Topology live feed: real domain events + the backend's own runtime logs.
         model.add(linkTo(methodOn(ConsoleController::class.java).topologyEvents(40)).withRel("topology-events"))
@@ -63,8 +66,7 @@ class ApiIndexController {
     }
 
     /** Absolute URL on the public host (honours nginx X-Forwarded-*). */
-    private fun absolute(path: String): String =
-        ServletUriComponentsBuilder.fromCurrentContextPath().path(path).build().toUriString()
+    private fun absolute(path: String): String = ServletUriComponentsBuilder.fromCurrentContextPath().path(path).build().toUriString()
 
     /** RFC 6570 templated link: …/api/console/topology/node/{deviceId}. */
     private fun nodeDetailTemplate(): String {

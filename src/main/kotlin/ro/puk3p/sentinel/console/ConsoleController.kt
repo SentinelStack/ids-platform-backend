@@ -14,6 +14,7 @@ import ro.puk3p.sentinel.alert.controller.AlertController
 import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.device.controller.DeviceController
 import ro.puk3p.sentinel.console.dto.DashboardView
+import ro.puk3p.sentinel.console.dto.DestinationsView
 import ro.puk3p.sentinel.console.dto.IncidentForensicsView
 import ro.puk3p.sentinel.console.dto.IncidentsView
 import ro.puk3p.sentinel.console.dto.LogStreamView
@@ -22,6 +23,7 @@ import ro.puk3p.sentinel.console.dto.RulesConsoleView
 import ro.puk3p.sentinel.console.dto.RuntimeLogLine
 import ro.puk3p.sentinel.console.dto.TopologyEvent
 import ro.puk3p.sentinel.console.dto.TrafficView
+import ro.puk3p.sentinel.dns.controller.DnsController
 import ro.puk3p.sentinel.rule.controller.RuleController
 
 @RestController
@@ -70,6 +72,20 @@ class ConsoleController(
                 linkTo(methodOn(ConsoleController::class.java).incidents()).withRel("incidents"),
             )
         return ApiResponse(success = true, message = "Traffic view", data = model)
+    }
+
+    @GetMapping("/destinations")
+    fun destinations(): ApiResponse<EntityModel<DestinationsView>> {
+        val model =
+            EntityModel.of(
+                consoleService.destinations(),
+                linkTo(methodOn(ConsoleController::class.java).destinations()).withSelfRel(),
+                linkTo(methodOn(ConsoleController::class.java).traffic()).withRel("traffic"),
+                linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("dashboard"),
+                linkTo(methodOn(ConsoleController::class.java).incidents()).withRel("incidents"),
+                linkTo(methodOn(DnsController::class.java).recent(0, 20)).withRel("dns-queries"),
+            )
+        return ApiResponse(success = true, message = "Destinations view", data = model)
     }
 
     @GetMapping("/dashboard")

@@ -9,7 +9,10 @@ import java.time.format.DateTimeParseException
 object QueryParams {
     const val MAX_PAGE_SIZE = 500
 
-    fun parseInstant(name: String, value: String?): Instant? {
+    fun parseInstant(
+        name: String,
+        value: String?,
+    ): Instant? {
         if (value.isNullOrBlank()) {
             return null
         }
@@ -20,7 +23,11 @@ object QueryParams {
         }
     }
 
-    fun pageRequest(page: Int, size: Int, sort: Sort): PageRequest {
+    fun pageRequest(
+        page: Int,
+        size: Int,
+        sort: Sort,
+    ): PageRequest {
         if (page < 0) {
             throw BadRequestException("'page' must be >= 0, got $page")
         }
@@ -30,7 +37,11 @@ object QueryParams {
         return PageRequest.of(page, size, sort)
     }
 
-    fun sort(sortBy: String, direction: String, allowedFields: Set<String>): Sort {
+    fun sort(
+        sortBy: String,
+        direction: String,
+        allowedFields: Set<String>,
+    ): Sort {
         if (sortBy !in allowedFields) {
             throw BadRequestException("'sortBy' must be one of ${allowedFields.sorted()}, got '$sortBy'")
         }

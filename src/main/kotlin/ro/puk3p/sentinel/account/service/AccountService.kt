@@ -78,8 +78,9 @@ class AccountService(
         code: String,
         http: HttpServletRequest,
     ): LoginResponse {
-        val username = jwtService.parseMfaChallenge(mfaToken)
-            ?: throw UnauthorizedException("Your verification session expired — sign in again")
+        val username =
+            jwtService.parseMfaChallenge(mfaToken)
+                ?: throw UnauthorizedException("Your verification session expired — sign in again")
         val user = require(username)
         val secret = user.mfaSecret
         if (!user.mfaEnabled || secret.isNullOrBlank() || !totpService.verify(secret, code)) {

@@ -84,7 +84,9 @@ class AlertController(
                 isLast = result.isLast,
             )
         PageLinks.apply(paged, result) { p ->
-            linkTo(methodOn(AlertController::class.java).getAll(severity, protocol, deviceId, sourceIp, from, to, p, size, sortBy, direction))
+            linkTo(
+                methodOn(AlertController::class.java).getAll(severity, protocol, deviceId, sourceIp, from, to, p, size, sortBy, direction),
+            )
         }
 
         return ApiResponse(success = true, message = "Alerts retrieved", data = paged)
@@ -94,7 +96,11 @@ class AlertController(
     fun getById(
         @PathVariable alertId: String,
     ): ApiResponse<EntityModel<AlertResponse>> {
-        return ApiResponse(success = true, message = "Alert retrieved", data = alertModelAssembler.toModel(alertService.getByAlertId(alertId)))
+        return ApiResponse(
+            success = true,
+            message = "Alert retrieved",
+            data = alertModelAssembler.toModel(alertService.getByAlertId(alertId)),
+        )
     }
 
     @GetMapping("/latest")
@@ -131,7 +137,11 @@ class AlertController(
     fun acknowledge(
         @PathVariable alertId: String,
     ): ApiResponse<EntityModel<AlertResponse>> {
-        return ApiResponse(success = true, message = "Alert acknowledged", data = alertModelAssembler.toModel(alertService.acknowledge(alertId)))
+        return ApiResponse(
+            success = true,
+            message = "Alert acknowledged",
+            data = alertModelAssembler.toModel(alertService.acknowledge(alertId)),
+        )
     }
 
     @GetMapping("/analysts")
@@ -151,7 +161,11 @@ class AlertController(
         @PathVariable alertId: String,
         @RequestBody(required = false) request: AssignRequest?,
     ): ApiResponse<EntityModel<AlertResponse>> {
-        return ApiResponse(success = true, message = "Analyst assigned", data = alertModelAssembler.toModel(alertService.assign(alertId, request?.analyst)))
+        return ApiResponse(
+            success = true,
+            message = "Analyst assigned",
+            data = alertModelAssembler.toModel(alertService.assign(alertId, request?.analyst)),
+        )
     }
 
     @PostMapping("/{alertId}/contain")

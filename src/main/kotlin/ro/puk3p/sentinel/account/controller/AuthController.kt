@@ -26,8 +26,7 @@ class AuthController(
     fun login(
         @Valid @RequestBody request: LoginRequest,
         http: HttpServletRequest,
-    ): ApiResponse<LoginResponse> =
-        ApiResponse(success = true, message = "Authenticated", data = accountService.login(request, http))
+    ): ApiResponse<LoginResponse> = ApiResponse(success = true, message = "Authenticated", data = accountService.login(request, http))
 
     @PostMapping("/mfa")
     fun loginMfa(
@@ -54,8 +53,7 @@ class AuthController(
     @PostMapping("/register")
     fun register(
         @Valid @RequestBody request: RegisterRequest,
-    ): ApiResponse<AccountView> =
-        ApiResponse(success = true, message = "Account created", data = accountService.register(request))
+    ): ApiResponse<AccountView> = ApiResponse(success = true, message = "Account created", data = accountService.register(request))
 
     @PostMapping("/logout")
     fun logout(http: HttpServletRequest): ApiResponse<Unit> {

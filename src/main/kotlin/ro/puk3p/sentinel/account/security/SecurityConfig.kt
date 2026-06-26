@@ -51,6 +51,7 @@ class SecurityConfig(
                         "/api/devices/*/heartbeat",
                         "/api/traffic/stats",
                         "/api/alerts",
+                        "/api/dns/queries",
                     ).hasAnyRole("AGENT", "USER")
                     .requestMatchers(HttpMethod.GET, "/api/devices/*/ruleset").hasAnyRole("AGENT", "USER")
                     // CORS preflight.

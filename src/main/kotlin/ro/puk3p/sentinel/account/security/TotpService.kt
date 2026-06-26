@@ -15,14 +15,18 @@ import org.springframework.stereotype.Service
 class TotpService {
     private val secretGenerator = DefaultSecretGenerator()
     private val qrGenerator = ZxingPngQrGenerator()
-    private val verifier = DefaultCodeVerifier(DefaultCodeGenerator(), SystemTimeProvider()).apply {
-        // Accept the adjacent time step on each side to tolerate small clock drift.
-        setAllowedTimePeriodDiscrepancy(1)
-    }
+    private val verifier =
+        DefaultCodeVerifier(DefaultCodeGenerator(), SystemTimeProvider()).apply {
+            // Accept the adjacent time step on each side to tolerate small clock drift.
+            setAllowedTimePeriodDiscrepancy(1)
+        }
 
     fun newSecret(): String = secretGenerator.generate()
 
-    private fun qrData(username: String, secret: String): QrData =
+    private fun qrData(
+        username: String,
+        secret: String,
+    ): QrData =
         QrData.Builder()
             .label("Sentinel ($username)")
             .secret(secret)
@@ -32,14 +36,23 @@ class TotpService {
             .period(30)
             .build()
 
-    fun otpauthUri(username: String, secret: String): String = qrData(username, secret).uri
+    fun otpauthUri(
+        username: String,
+        secret: String,
+    ): String = qrData(username, secret).uri
 
     /** A `data:image/png;base64,...` QR encoding the otpauth URI, for inline display. */
-    fun qrDataUri(username: String, secret: String): String {
+    fun qrDataUri(
+        username: String,
+        secret: String,
+    ): String {
         val data = qrData(username, secret)
         val image = qrGenerator.generate(data)
         return Utils.getDataUriForImage(image, qrGenerator.imageMimeType)
     }
 
-    fun verify(secret: String, code: String): Boolean = verifier.isValidCode(secret, code)
+    fun verify(
+        secret: String,
+        code: String,
+    ): Boolean = verifier.isValidCode(secret, code)
 }
