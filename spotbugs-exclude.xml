@@ -46,6 +46,12 @@
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
 
+    <!-- Forensics ingest/view DTOs carry Kotlin read-only List fields. -->
+    <Match>
+        <Class name="~ro\.puk3p\.sentinel\.forensics\..*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
     <!-- Edge-rule entity/DTOs carry Kotlin read-only List/Map fields. -->
     <Match>
         <Class name="~ro\.puk3p\.sentinel\.rule\..*"/>
