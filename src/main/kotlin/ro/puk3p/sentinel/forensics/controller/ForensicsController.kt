@@ -20,15 +20,19 @@ import ro.puk3p.sentinel.common.response.PagedResponse
 import ro.puk3p.sentinel.common.web.QueryParams
 import ro.puk3p.sentinel.forensics.assembler.ForensicsTimelineModelAssembler
 import ro.puk3p.sentinel.forensics.assembler.PacketSummaryModelAssembler
+import ro.puk3p.sentinel.forensics.dto.ForensicsBatchRequest
 import ro.puk3p.sentinel.forensics.dto.ForensicsTimelineEntry
 import ro.puk3p.sentinel.forensics.dto.PacketSummaryCreateRequest
 import ro.puk3p.sentinel.forensics.dto.PacketSummaryResponse
+import ro.puk3p.sentinel.forensics.mapper.PacketSummaryMapper
+import ro.puk3p.sentinel.forensics.repository.PacketSummaryRepository
 import ro.puk3p.sentinel.forensics.service.ForensicsService
 
 @RestController
 @RequestMapping("/api/forensics")
 class ForensicsController(
     private val forensicsService: ForensicsService,
+    private val packetSummaryRepository: PacketSummaryRepository,
     private val packetSummaryModelAssembler: PacketSummaryModelAssembler,
     private val forensicsTimelineModelAssembler: ForensicsTimelineModelAssembler,
 ) {
@@ -41,6 +45,19 @@ class ForensicsController(
             success = true,
             message = "Packet summary stored",
             data = packetSummaryModelAssembler.toModel(forensicsService.createPacketSummary(request)),
+        )
+    }
+
+    @PostMapping("/packets/batch")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun ingestBatch(
+        @Valid @RequestBody request: ForensicsBatchRequest,
+    ): ApiResponse<Map<String, Int>> {
+        val saved = packetSummaryRepository.saveAll(PacketSummaryMapper.toEntities(request))
+        return ApiResponse(
+            success = true,
+            message = "Packet summaries stored",
+            data = mapOf("saved" to saved.size),
         )
     }
 

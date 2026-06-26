@@ -1,5 +1,6 @@
 package ro.puk3p.sentinel.forensics.mapper
 
+import ro.puk3p.sentinel.forensics.dto.ForensicsBatchRequest
 import ro.puk3p.sentinel.forensics.dto.ForensicsTimelineEntry
 import ro.puk3p.sentinel.forensics.dto.PacketSummaryCreateRequest
 import ro.puk3p.sentinel.forensics.dto.PacketSummaryResponse
@@ -19,6 +20,23 @@ object PacketSummaryMapper {
             packetSize = request.packetSize,
             tcpFlags = request.tcpFlags,
         )
+    }
+
+    fun toEntities(request: ForensicsBatchRequest): List<PacketSummaryEntity> {
+        return request.packets.map { item ->
+            PacketSummaryEntity(
+                deviceId = request.deviceId,
+                alertId = null,
+                timestamp = item.timestamp,
+                protocol = item.protocol,
+                sourceIp = item.sourceIp,
+                destinationIp = item.destinationIp,
+                sourcePort = item.sourcePort,
+                destinationPort = item.destinationPort,
+                packetSize = item.packetSize.toLong(),
+                tcpFlags = null,
+            )
+        }
     }
 
     fun toResponse(entity: PacketSummaryEntity): PacketSummaryResponse {
