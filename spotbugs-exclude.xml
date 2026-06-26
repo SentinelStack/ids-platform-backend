@@ -34,6 +34,18 @@
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
 
+    <!-- DNS ingest/view DTOs carry Kotlin read-only List fields. -->
+    <Match>
+        <Class name="~ro\.puk3p\.sentinel\.dns\..*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Connected-client roster DTOs carry Kotlin read-only List fields. -->
+    <Match>
+        <Class name="~ro\.puk3p\.sentinel\.client\..*"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
     <!-- Edge-rule entity/DTOs carry Kotlin read-only List/Map fields. -->
     <Match>
         <Class name="~ro\.puk3p\.sentinel\.rule\..*"/>
