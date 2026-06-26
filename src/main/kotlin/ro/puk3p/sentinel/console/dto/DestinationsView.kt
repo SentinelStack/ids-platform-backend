@@ -25,6 +25,7 @@ data class TopDomain(
 
 data class ClientDomains(
     val clientIp: String,
+    val name: String?,
     val queryCount: Int,
     val topDomain: String,
     val domains: List<DomainHit>,

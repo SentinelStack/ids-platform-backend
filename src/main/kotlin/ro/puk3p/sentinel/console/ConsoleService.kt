@@ -7,10 +7,14 @@ import ro.puk3p.sentinel.alert.entity.AlertEntity
 import ro.puk3p.sentinel.alert.model.AlertType
 import ro.puk3p.sentinel.alert.model.Severity
 import ro.puk3p.sentinel.alert.repository.AlertRepository
+import ro.puk3p.sentinel.client.repository.ClientRepository
 import ro.puk3p.sentinel.common.exception.ResourceNotFoundException
 import ro.puk3p.sentinel.console.dto.AffectedAsset
 import ro.puk3p.sentinel.console.dto.CategoryCount
 import ro.puk3p.sentinel.console.dto.ClientDomains
+import ro.puk3p.sentinel.console.dto.ClientRow
+import ro.puk3p.sentinel.console.dto.ClientsSummary
+import ro.puk3p.sentinel.console.dto.ClientsView
 import ro.puk3p.sentinel.console.dto.DashboardKpis
 import ro.puk3p.sentinel.console.dto.DashboardView
 import ro.puk3p.sentinel.console.dto.DestinationRow
@@ -69,6 +73,7 @@ class ConsoleService(
     private val trafficStatsService: TrafficStatsService,
     private val packetSummaryRepository: PacketSummaryRepository,
     private val dnsQueryRepository: DnsQueryRepository,
+    private val clientRepository: ClientRepository,
     private val deviceRepository: DeviceRepository,
     private val ruleService: RuleService,
     private val geo: GeoLookup,
@@ -339,6 +344,12 @@ class ConsoleService(
     fun destinations(): DestinationsView {
         val rows = dnsQueryRepository.findAllByOrderByTimestampDesc(PageRequest.of(0, 300)).content
         val named = rows.filter { it.domain.isNotBlank() }
+        // Roster lookup: device name for a client IP (latest lastSeen wins).
+        val roster = clientRepository.findAllByOrderByLastSeenDesc()
+        val nameByIp =
+            roster.filter { it.ip.isNotBlank() }
+                .groupBy { it.ip }
+                .mapValues { (_, list) -> list.first().name }
 
         val summary =
             Summary(
@@ -384,6 +395,7 @@ class ConsoleService(
                     val queryCount = clientRows.sumOf { it.count }
                     ClientDomains(
                         clientIp = clientIp,
+                        name = nameByIp[clientIp],
                         queryCount = queryCount,
                         topDomain = domains.firstOrNull()?.domain ?: "—",
                         domains = domains,
@@ -411,6 +423,51 @@ class ConsoleService(
             topDomains = topDomains,
             byClient = byClient,
             recent = recent,
+        )
+    }
+
+    // ── Clients (LAN roster) ────────────────────────────────────────────────
+    /**
+     * The LAN roster the edge agent reports, joined against the recent DNS
+     * query windows: per host we compute how many lookups it made and the
+     * busiest domain it reached out to. Online hosts float to the top, then by
+     * query volume.
+     */
+    fun clients(): ClientsView {
+        val roster = clientRepository.findAllByOrderByLastSeenDesc()
+        val rows = dnsQueryRepository.findAllByOrderByTimestampDesc(PageRequest.of(0, 300)).content
+
+        // DNS activity keyed by client IP: total lookups + busiest domain.
+        val byIp =
+            rows.filter { it.clientIp.isNotBlank() }
+                .groupBy { it.clientIp }
+        val queryCountByIp = byIp.mapValues { (_, clientRows) -> clientRows.sumOf { it.count } }
+        val topDestinationByIp =
+            byIp.mapValues { (_, clientRows) ->
+                clientRows.filter { it.domain.isNotBlank() }
+                    .groupingBy { it.domain }
+                    .fold(0) { acc, row -> acc + row.count }
+                    .entries
+                    .maxByOrNull { it.value }
+                    ?.key ?: "—"
+            }
+
+        val clients =
+            roster.map { c ->
+                ClientRow(
+                    name = c.name,
+                    ip = c.ip,
+                    mac = c.mac,
+                    online = c.online,
+                    lastSeen = c.lastSeen.toString(),
+                    queryCount = queryCountByIp[c.ip] ?: 0,
+                    topDestination = topDestinationByIp[c.ip] ?: "—",
+                )
+            }.sortedWith(compareByDescending<ClientRow> { it.online }.thenByDescending { it.queryCount })
+
+        return ClientsView(
+            summary = ClientsSummary(total = roster.size, online = roster.count { it.online }),
+            clients = clients,
         )
     }
 

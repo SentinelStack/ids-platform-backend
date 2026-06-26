@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController
 import ro.puk3p.sentinel.alert.controller.AlertController
 import ro.puk3p.sentinel.common.response.ApiResponse
 import ro.puk3p.sentinel.device.controller.DeviceController
+import ro.puk3p.sentinel.console.dto.ClientsView
 import ro.puk3p.sentinel.console.dto.DashboardView
 import ro.puk3p.sentinel.console.dto.DestinationsView
 import ro.puk3p.sentinel.console.dto.IncidentForensicsView
@@ -86,6 +87,20 @@ class ConsoleController(
                 linkTo(methodOn(DnsController::class.java).recent(0, 20)).withRel("dns-queries"),
             )
         return ApiResponse(success = true, message = "Destinations view", data = model)
+    }
+
+    @GetMapping("/clients")
+    fun clients(): ApiResponse<EntityModel<ClientsView>> {
+        val model =
+            EntityModel.of(
+                consoleService.clients(),
+                linkTo(methodOn(ConsoleController::class.java).clients()).withSelfRel(),
+                linkTo(methodOn(ConsoleController::class.java).destinations()).withRel("destinations"),
+                linkTo(methodOn(ConsoleController::class.java).traffic()).withRel("traffic"),
+                linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("dashboard"),
+                linkTo(methodOn(ConsoleController::class.java).incidents()).withRel("incidents"),
+            )
+        return ApiResponse(success = true, message = "Clients view", data = model)
     }
 
     @GetMapping("/dashboard")

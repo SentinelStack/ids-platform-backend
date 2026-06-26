@@ -44,6 +44,7 @@ class ApiIndexController {
         model.add(linkTo(methodOn(ConsoleController::class.java).dashboard()).withRel("console-dashboard"))
         model.add(linkTo(methodOn(ConsoleController::class.java).traffic()).withRel("console-traffic"))
         model.add(linkTo(methodOn(ConsoleController::class.java).destinations()).withRel("console-destinations"))
+        model.add(linkTo(methodOn(ConsoleController::class.java).clients()).withRel("console-clients"))
         model.add(linkTo(methodOn(ConsoleController::class.java).incidents()).withRel("console-incidents"))
         // Topology live feed: real domain events + the backend's own runtime logs.
         model.add(linkTo(methodOn(ConsoleController::class.java).topologyEvents(40)).withRel("topology-events"))
